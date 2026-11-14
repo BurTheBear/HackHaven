@@ -1,0 +1,41 @@
+{
+  "glb_structure": {
+    "Listener.glb": {
+      "triangles": 39460,
+      "skins": 1,
+      "bones": 17,
+      "animations": [
+        "Idle_Breathe",
+        "Walk_Stalk",
+        "Alert_Listen",
+        "Sleep_Dormant"
+      ],
+      "embedded_images": 2,
+      "bytes": 6932372,
+      "normal_maps": 6
+    },
+    "Listener_Web.glb": {
+      "triangles": 18939,
+      "skins": 1,
+      "bones": 17,
+      "animations": [
+        "Idle_Breathe",
+        "Walk_Stalk",
+        "Alert_Listen",
+        "Sleep_Dormant"
+      ],
+      "embedded_images": 2,
+      "bytes": 5977444,
+      "normal_maps": 6
+    }
+  },
+  "godot_engine": "4.6.1.stable",
+  "game_repository_modified": false,
+  "godot_checks": {
+    "import": "passed for both GLB files",
+    "runtime_studio": "passed",
+    "runtime_echo_shader_and_clip_switching": "passed",
+    "renderer": "OpenGL 4.1 Metal Compatibility, Apple M1 Max",
+    "game_integration": "not performed"
+  }
+}
