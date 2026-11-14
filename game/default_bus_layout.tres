@@ -1,4 +1,4 @@
-[gd_resource type="AudioBusLayout" format=3]
+[gd_resource type="AudioBusLayout" format=3 uid="uid://buxxpix7604u7"]
 
 [sub_resource type="AudioEffectLowPassFilter" id="AudioEffectLowPassFilter_muffle"]
 resource_name = "Muffle"
@@ -20,12 +20,6 @@ wet = 0.24
 resource_name = "Duck"
 
 [resource]
-bus/0/name = &"Master"
-bus/0/solo = false
-bus/0/mute = false
-bus/0/bypass_fx = false
-bus/0/volume_db = 0.0
-bus/0/send = &""
 bus/0/effect/0/effect = SubResource("AudioEffectLowPassFilter_muffle")
 bus/0/effect/0/enabled = false
 bus/0/effect/1/effect = SubResource("AudioEffectHardLimiter_master")
