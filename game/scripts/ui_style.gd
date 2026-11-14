@@ -3,6 +3,7 @@ extends RefCounted
 ## names for prompts, key rebinding save/load. Use with
 ## `const Style = preload("res://scripts/ui_style.gd")`.
 
+const FONT: Font = preload("res://assets/fonts/Redaction50-Regular.ttf")   
 const CYAN := Color(0.239, 0.961, 1.0)
 const DIM_CYAN := Color(0.36, 0.62, 0.66, 0.85)
 const GOLD := Color(1.0, 0.784, 0.271)
@@ -32,9 +33,9 @@ static var using_pad := false
 static func spaced_font() -> FontVariation:
 	if _spaced == null:
 		_spaced = FontVariation.new()
-		_spaced.base_font = ThemeDB.fallback_font
+		_spaced.base_font = FONT                     # ← was ThemeDB.fallback_font
 		_spaced.spacing_glyph = 3
-	return _spaced
+	return _spaced   
 
 
 static func label(text: String, size: int, color: Color = TEXT, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER) -> Label:
@@ -42,6 +43,7 @@ static func label(text: String, size: int, color: Color = TEXT, align: Horizonta
 	l.text = text
 	l.horizontal_alignment = align
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.add_theme_font_override("font", FONT)          # ← add this line
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
