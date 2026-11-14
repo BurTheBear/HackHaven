@@ -76,9 +76,9 @@ size = Vector3(6, 4, 6)
 material = SubResource("StandardMaterial3D_t1rx8")
 
 [node name="Tunnel" type="CSGBox3D" parent="Geometry/Cave" unique_id=681401570]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, -10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, -10.5)
 operation = 2
-size = Vector3(3, 3.5, 16)
+size = Vector3(3, 3.5, 17)
 material = SubResource("StandardMaterial3D_t1rx8")
 
 [node name="Bend" type="CSGBox3D" parent="Geometry/Cave" unique_id=1152971862]

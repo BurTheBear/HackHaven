@@ -26,10 +26,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				start_game()
 				get_viewport().set_input_as_handled()
 		Game.State.PLAYING:
-			if click and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-				get_viewport().set_input_as_handled()
-			elif event.is_action_pressed("pause"):
+			# Unlocking the mouse pauses the game (see ui.gd), which also
+			# handles the click that resumes it.
+			if event.is_action_pressed("pause"):
 				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		Game.State.WON:
 			if click:

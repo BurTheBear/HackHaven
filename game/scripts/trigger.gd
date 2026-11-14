@@ -10,16 +10,24 @@ enum Kind { CHECKPOINT, PEBBLES, VOICE_LOG, EXIT }
 @export_multiline var subtitle := ""
 
 var _used := false
+var _picked_since_checkpoint := false
 
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
+	Game.checkpoint_reached.connect(func(): _picked_since_checkpoint = false)
+	Game.player_caught.connect(_on_player_caught)
 
 
 func _on_body_entered(body: Node) -> void:
 	if _used or not body.is_in_group("player") or Game.state != Game.State.PLAYING:
 		return
+	# Full hands: leave the pile for later instead of wasting it.
+	if kind == Kind.PEBBLES and Game.pebbles >= Game.MAX_PEBBLES:
+		return
 	_used = true
+	if kind == Kind.PEBBLES:
+		_picked_since_checkpoint = true
 	_play_sound()
 	if subtitle != "":
 		Game.show_subtitle(subtitle)
@@ -31,6 +39,15 @@ func _on_body_entered(body: Node) -> void:
 			hide()
 		Kind.EXIT:
 			Game.win()
+
+
+## Respawning restores the pebble count from the last checkpoint, so piles
+## picked up after it come back too (otherwise those pebbles are lost forever).
+func _on_player_caught() -> void:
+	if kind == Kind.PEBBLES and _used and _picked_since_checkpoint:
+		_used = false
+		_picked_since_checkpoint = false
+		show()
 
 
 func _play_sound() -> void:
