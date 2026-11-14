@@ -218,10 +218,15 @@ func _intro_sequence() -> void:
 func restart_from_checkpoint() -> void:
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_respawn_at_checkpoint()
+	ui.dip_black(0.7)
+
+
+## Shared checkpoint reset for manual restart and the caught sequence.
+func _respawn_at_checkpoint() -> void:
 	player.respawn(Game.checkpoint_position, Game.checkpoint_yaw)
 	Echo.clear()
 	Game.respawned()
-	ui.dip_black(0.7)
 
 
 ## Back to the main menu (reloads the scene).
@@ -286,9 +291,7 @@ func _on_caught() -> void:
 	await ui.caught_out()
 	if not is_inside_tree():
 		return
-	player.respawn(Game.checkpoint_position, Game.checkpoint_yaw)
-	Echo.clear()
-	Game.respawned()
+	_respawn_at_checkpoint()
 	ui.caught_in()
 
 

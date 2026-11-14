@@ -64,7 +64,7 @@ var checkpoint_yaw := 0.0
 ## Which level main.gd loads: 0 = level.tscn, 1 = level2.tscn.
 var level_index := 0
 var current_zone := ""
-## Run stats: "pings", "whispers", "pebbles_thrown", "logs", "crystals", "chalk".
+## Run stats: "pings", "whispers", "pebbles_thrown", "logs", "crystals".
 var stats := {}
 var logs_found: Array[int] = []
 var crystals_found := 0
@@ -318,9 +318,9 @@ func win() -> void:
 
 # ---------------------------------------------------------------- Combat
 
-## Damage mode (Settings.damage_enabled, default on). Off = instant catch.
+## Damage mode (Settings.damage_enabled, default off). Off = instant catch.
 func damage_enabled() -> bool:
-	return Settings.get("damage_enabled") != false
+	return Settings.damage_enabled
 
 
 ## Health from 0.0 (dead) to 1.0 (full).
@@ -358,7 +358,7 @@ func dagger_damage() -> int:
 
 ## Hurts the player; at 0 HP this is the usual catch (and respawn).
 func damage_player(amount: int, from: Vector3 = Vector3.ZERO) -> void:
-	if state != State.PLAYING or amount <= 0:
+	if not damage_enabled() or state != State.PLAYING or amount <= 0:
 		return
 	player_health = player_health - amount
 	if player_health < 0:
@@ -372,6 +372,8 @@ func damage_player(amount: int, from: Vector3 = Vector3.ZERO) -> void:
 
 ## The player now has a dagger.
 func pick_dagger() -> void:
+	if not damage_enabled():
+		return
 	has_dagger = true
 	add_stat("daggers_found")
 	dagger_picked.emit()
