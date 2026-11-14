@@ -117,7 +117,7 @@ func _ready() -> void:
 ## GAMEPLAY tab rows.
 func _build_gameplay() -> void:
 	_section("COMBAT")
-	_check("Knives & damage (optional; off: instant catch)", "damage_enabled")
+	_option("Damage mode", "damage_enabled", ["No Damage", "Damage"])
 	_option("Difficulty", "difficulty", Settings.DIFFICULTIES)
 	_section("RUN")
 	_check("Speedrun timer", "speedrun_timer")
@@ -440,7 +440,10 @@ func _option(text: String, key: String, options: Array) -> OptionButton:
 
 func _on_option(index: int, key: String) -> void:
 	Sfx.play("ui_click", -10.0)
-	_changed(key, index)
+	if key == "damage_enabled":
+		_changed(key, index == 1)
+	else:
+		_changed(key, index)
 
 
 # ---------------------------------------------------------------- Key rebinding
