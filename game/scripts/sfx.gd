@@ -6,8 +6,12 @@ extends Node
 ## stream(name) looks for res://audio/<name>.ogg, then .wav, then .mp3, and
 ## uses that file instead if it exists. To replace the drip, save a recording
 ## as game/audio/drip.ogg. Every sound name is listed in PRIORITY below.
-## Names in LOOPS are set to loop automatically for .ogg / .mp3 files; for a
-## looping .wav, set Loop Mode to Forward in Godot's Import dock.
+## Names in LOOPS are set to loop automatically (.ogg / .mp3 / .wav).
+##
+## FREESOUND LIBRARY: NAME_FILES maps sound names to the teammate's CC0
+## Freesound cues in res://audio/freesound/ and is checked first of all. A
+## name with several files (footsteps, pebbles) picks one at random on every
+## play() / play_3d(), so repeated steps don't sound identical.
 ##
 ## Sounds are built over several frames after startup, most important first,
 ## so the game never freezes. `loaded` fires (and is_loaded turns true) once
@@ -31,7 +35,62 @@ const AUDIO_DIR := "res://audio/"
 const EXTENSIONS := ["ogg", "wav", "mp3"]
 ## Keep building more sounds in the same frame only while under this budget.
 const FRAME_BUDGET_USEC := 4000
-const LOOPS := ["drone", "breath", "wind", "birdsong", "tape_hiss", "shepard"]
+const LOOPS := ["drone", "breath", "wind", "birdsong", "tape_hiss", "shepard", "whisper_ambience"]
+const FREESOUND_DIR := "res://audio/freesound/"
+## Sound name -> Freesound file(s) (see game/audio/freesound/USAGE.csv).
+const NAME_FILES := {
+	"ping": ["ping.wav"],
+	"whisper_ping": ["whisper_ping.wav"],
+	"ready": ["ready.wav"],
+	"ui_hover": ["ui_hover.wav"],
+	"ui_click": ["ui_click.wav"],
+	"ui_back": ["ui_back.wav"],
+	"step": ["step.wav", "step_alt1.wav", "step_alt2.wav"],
+	"step_wood": ["step_wood.wav", "step_wood_alt1.wav", "step_wood_alt2.wav"],
+	"step_gravel": ["step_gravel.wav", "step_gravel_alt1.wav", "step_gravel_alt2.wav"],
+	"step_water": ["step_water.wav", "step_water_alt1.wav", "step_water_alt2.wav"],
+	"splash": ["step_water_alt1.wav", "step_water_alt2.wav"],
+	"land": ["land.wav"],
+	"bump": ["bump.wav"],
+	"pant": ["pant.wav"],
+	"breath_hold": ["pant.wav"],
+	"breath_release": ["pant.wav"],
+	"breath": ["breath.mp3"],
+	"drone": ["drone.mp3"],
+	"wind": ["wind.mp3"],
+	"birdsong": ["birdsong.mp3"],
+	"tape_hiss": ["tape_hiss.mp3"],
+	"whisper_ambience": ["whisper_ambience.mp3"],
+	"heartbeat": ["heartbeat.wav"],
+	"heartbeat_slow": ["heartbeat_slow.wav"],
+	"hiss": ["hiss.wav"],
+	"shriek": ["shriek.wav"],
+	"listener_roar": ["shriek.wav"],
+	"drag_step": ["drag_step.wav"],
+	"sting": ["sting.wav"],
+	"drip": ["drip.wav"],
+	"scrape": ["scrape.wav"],
+	"knock": ["knock.wav"],
+	"bone_crunch": ["knock.wav"],
+	"dust": ["dust.wav"],
+	"rope_creak": ["rope_creak.wav"],
+	"plank_creak": ["rope_creak.wav"],
+	"rope_snap": ["rope_snap.wav"],
+	"impact": ["impact.wav"],
+	"click": ["click.wav"],
+	"chalk": ["chalk.wav"],
+	"chime": ["chime.wav"],
+	"crystal": ["crystal.wav"],
+	"pebble": ["pebble.wav", "pebble_alt1.wav", "pebble_alt2.wav"],
+	"pickup_pebbles": ["pickup_pebbles.wav"],
+	# Combat.
+	"listener_attack": ["hiss.wav"],
+	"listener_hurt": ["shriek.wav"],
+	"listener_death": ["impact.wav"],
+	"dagger_swing": ["rope_snap.wav"],
+	"dagger_hit": ["knock.wav", "bump.wav"],
+	"player_hurt": ["pant.wav"],
+}
 ## Every sound name, in the order they're built after startup.
 const PRIORITY := [
 	"ping", "ui_hover", "ui_click", "ui_back", "step", "ready", "whisper_ping",
@@ -40,7 +99,9 @@ const PRIORITY := [
 	"pickup_pebbles", "crystal", "drip", "scrape", "knock", "step_wood",
 	"step_gravel", "step_water", "heartbeat_slow", "dust", "whisper_name",
 	"rope_creak", "rope_snap", "impact",
-	"tape_hiss", "wind", "shepard", "birdsong",
+	"listener_attack", "listener_hurt", "listener_death", "dagger_swing",
+	"dagger_hit", "player_hurt",
+	"tape_hiss", "wind", "shepard", "birdsong", "whisper_ambience",
 ]
 ## Cave-bus reverb per kind of space: room_size, damping, wet, predelay (ms).
 const REVERB_PRESETS := {
@@ -54,6 +115,7 @@ const REVERB_PRESETS := {
 var is_loaded := false
 
 var _cache := {}
+var _file_cache := {}
 var _queue_index := 0
 var _players: Array[AudioStreamPlayer] = []
 var _ui_players: Array[AudioStreamPlayer] = []
@@ -110,7 +172,7 @@ func play(sound: String, volume_db: float = 0.0, bus: StringName = &"Master", pi
 		if at > longest:
 			longest = at
 			p = q
-	p.stream = stream(sound)
+	p.stream = _variant(sound)
 	p.volume_db = volume_db
 	p.bus = bus
 	p.pitch_scale = pitch
@@ -124,7 +186,7 @@ func play_3d(sound: String, pos: Vector3, volume_db: float = 0.0, bus: StringNam
 	if parent == null:
 		parent = self
 	var p := AudioStreamPlayer3D.new()
-	p.stream = stream(sound)
+	p.stream = _variant(sound)
 	p.volume_db = volume_db
 	p.bus = bus
 	p.pitch_scale = pitch
@@ -149,6 +211,13 @@ const STAND_INS := {
 	"plank_creak": "rope_creak",
 	"listener_roar": "shriek",
 	"chase_music": "drone",
+	"listener_attack": "hiss",
+	"listener_hurt": "shriek",
+	"listener_death": "shriek",
+	"dagger_swing": "scrape",
+	"dagger_hit": "knock",
+	"player_hurt": "bump",
+	"whisper_ambience": "tape_hiss",
 }
 
 
@@ -243,7 +312,39 @@ func _bus_effect(bus_name: String, cls: String) -> AudioEffect:
 	return AudioServer.get_bus_effect(idx, i)
 
 
+## stream(sound), or a random one of its Freesound alternates.
+func _variant(sound: String) -> AudioStream:
+	var files: Array = NAME_FILES.get(sound, [])
+	if files.size() > 1:
+		var s := _load_library_file(String(files[randi() % files.size()]), sound)
+		if s != null:
+			return s
+	return stream(sound)
+
+
+func _load_library_file(file: String, sound: String) -> AudioStream:
+	var path := FREESOUND_DIR + file
+	if _file_cache.has(path):
+		return _file_cache[path]
+	if not ResourceLoader.exists(path):
+		return null
+	var res := load(path) as AudioStream
+	if res != null:
+		# A path-less copy (shares the audio data): loop flags never touch the
+		# imported resource, and a stream still playing at quit isn't reported.
+		res = res.duplicate() as AudioStream
+	if res != null and sound in LOOPS:
+		_set_loop(res)
+	_file_cache[path] = res
+	return res
+
+
 func _load_file(sound: String) -> AudioStream:
+	var files: Array = NAME_FILES.get(sound, [])
+	if not files.is_empty():
+		var lib := _load_library_file(String(files[0]), sound)
+		if lib != null:
+			return lib
 	for ext in EXTENSIONS:
 		var path: String = AUDIO_DIR + sound + "." + str(ext)
 		if ResourceLoader.exists(path):
@@ -260,6 +361,13 @@ func _set_loop(res: AudioStream) -> void:
 		(res as AudioStreamOggVorbis).loop = true
 	elif res is AudioStreamMP3:
 		(res as AudioStreamMP3).loop = true
+	elif res is AudioStreamWAV:
+		var w := res as AudioStreamWAV
+		var frames := int(w.get_length() * float(w.mix_rate))
+		if frames > 0:
+			w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			w.loop_begin = 0
+			w.loop_end = frames
 
 
 func _build(sound: String) -> AudioStream:

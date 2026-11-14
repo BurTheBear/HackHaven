@@ -45,6 +45,7 @@ const PROMPTS := {
 	"pebbles_empty": ["", "Out of pebbles."],
 	"hold_breath": ["hold_breath", "Hold your breath"],
 	"hide": ["interact", "Hide"],
+	"attack": ["attack", "Strike"],
 }
 const EXTRA_SHADER := """
 shader_type canvas_item;
@@ -215,6 +216,14 @@ var _zone_tween: Tween
 var _prompt_tween: Tween
 var _sub_tween: Tween
 var _center_tween: Tween
+# Combat HUD
+var _hp := -1.0
+var _hp_max := 100.0
+var _hp_lag := -1.0  ## Trailing "lost health" segment.
+var _hp_hit := 0.0  ## Bar flash after a hit.
+var _attack_max := 0.5
+var _dmg_numbers: Array = []  ## [{pos: Vector3, text: String, age: float}]
+var _fps_label: Label
 
 
 func _ready() -> void:
@@ -299,6 +308,15 @@ func _ready() -> void:
 	Game.level_event.connect(_on_level_event_ui)
 	Echo.ping_emitted.connect(_on_ping)
 	Settings.changed.connect(_apply_sub_size)
+	_connect_combat()
+	_fps_label = Style.label("", 16, Color(0.75, 0.95, 0.8, 0.85), HORIZONTAL_ALIGNMENT_LEFT)
+	_fps_label.offset_left = 12.0
+	_fps_label.offset_top = 8.0
+	_fps_label.offset_right = 140.0
+	_fps_label.offset_bottom = 30.0
+	_fps_label.visible = false
+	root.add_child(_fps_label)
+	Settings.apply_scene()
 	_last_pebbles = Game.pebbles
 	_apply_sub_size()
 	if _map != null and _map.has_method("setup"):
@@ -450,7 +468,9 @@ func _update_presence(delta: float, live: bool) -> void:
 	var target := _dread if live else 0.0
 	_presence = lerpf(_presence, target, 1.0 - exp(-4.0 * delta))
 	var vis := smoothstep(0.02, 0.1, _presence)
-	_presence_root.visible = vis > 0.001
+	_presence_root.visible = vis > 0.001 and Settings.presence_bar
+	_presence_root.pivot_offset = _presence_root.size * Vector2(0.5, 1.0)
+	_presence_root.scale = Vector2.ONE * clampf(float(Settings.hud_scale), 0.5, 2.0)
 	if not _presence_root.visible:
 		return
 	var col: Color
@@ -781,6 +801,11 @@ func _process(delta: float) -> void:
 	var hud_target := 1.0 if (_idle < HUD_IDLE or cooling) else 0.0
 	_hud_alpha = move_toward(_hud_alpha, hud_target, delta * (3.0 if hud_target > _hud_alpha else 0.8))
 	_update_hud_anim(delta)
+	_update_combat(delta)
+	_hud.modulate.a = clampf(float(Settings.hud_opacity), 0.05, 1.0)
+	_fps_label.visible = Settings.show_fps
+	if _fps_label.visible:
+		_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	if _hud.visible:
 		_hud.queue_redraw()
 	_timer_label.visible = Settings.speedrun_timer and Game.state != Game.State.TITLE and Game.state != Game.State.WON
@@ -837,6 +862,9 @@ func _draw_hud() -> void:
 	var a := _hud_alpha
 	var cross_a := maxf(a, 0.4)
 	var cyan := Style.CYAN
+	var hs := clampf(float(Settings.hud_scale), 0.5, 2.0)
+	# Crosshair group scales around the screen centre.
+	_hud.draw_set_transform(c * (1.0 - hs), 0.0, Vector2(hs, hs))
 
 	# Noise ring while running: how far your footsteps carry.
 	var noise: float = _pget("noise_radius", 0.0)
@@ -849,8 +877,16 @@ func _draw_hud() -> void:
 	var run_t := maxf(_spread, 0.0)
 	var dot_r := 2.2 - sneak_t * 0.8
 	var dot_a := (0.85 - sneak_t * 0.35) * cross_a
-	_hud.draw_circle(c, dot_r + 1.2, Color(0.0, 0.0, 0.0, 0.45 * dot_a))
-	_hud.draw_circle(c, dot_r, Color(1.0, 1.0, 1.0, dot_a))
+	match int(Settings.crosshair_style):
+		0:
+			_hud.draw_circle(c, dot_r + 1.2, Color(0.0, 0.0, 0.0, 0.45 * dot_a))
+			_hud.draw_circle(c, dot_r, Color(1.0, 1.0, 1.0, dot_a))
+		1:
+			var gap := 3.0 + run_t * 4.0
+			for i in 4:
+				var d := Vector2.from_angle(i * PI * 0.5)
+				_hud.draw_line(c + d * gap, c + d * (gap + 6.0), Color(0.0, 0.0, 0.0, 0.5 * dot_a), 3.5)
+				_hud.draw_line(c + d * gap, c + d * (gap + 6.0), Color(1.0, 1.0, 1.0, dot_a), 1.5)
 	if run_t > 0.03:
 		var r0 := 6.0 + 7.0 * run_t
 		for i in 4:
@@ -885,6 +921,12 @@ func _draw_hud() -> void:
 		_hud.draw_rect(bar, Color(0.0, 0.0, 0.0, 0.45 * cross_a))
 		_hud.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(stamina, 0.0, 1.0), bar.size.y)), Color(bar_col.r, bar_col.g, bar_col.b, bar_col.a * cross_a))
 
+	_draw_attack_ring(c, cross_a)
+
+	# Bottom-left group scales around the bottom-left corner.
+	_hud.draw_set_transform(Vector2(0.0, size.y) * (1.0 - hs), 0.0, Vector2(hs, hs))
+	_draw_health(Vector2(38.0, size.y - 80.0), maxf(a, 0.55 if _hp_hit > 0.0 or _hp < _hp_max else a))
+
 	# Pebbles: gold dots, faint empty slots, pulse on pickup, drop on throw.
 	var base := Vector2(44.0, size.y - 46.0)
 	if _empty_shake > 0.0:
@@ -911,6 +953,8 @@ func _draw_hud() -> void:
 	for u in Game.upgrades:
 		_draw_upgrade(Vector2(x, base.y), int(u), a)
 		x += 24.0
+	_hud.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_draw_damage_numbers()
 
 
 func _draw_upgrade(p: Vector2, kind: int, a: float) -> void:
@@ -1305,3 +1349,164 @@ func _wait_or_skip(seconds: float) -> void:
 	while t < seconds and not _opening_skip:
 		await get_tree().process_frame
 		t += get_process_delta_time()
+
+
+# ---------------------------------------------------------------- Combat HUD
+# Everything here reads Game / player defensively: the combat fields and
+# signals may not exist in every build.
+
+func _connect_combat() -> void:
+	if Game.has_signal("health_changed"):
+		Game.connect("health_changed", _on_health_changed)
+	if Game.has_signal("player_damaged"):
+		Game.connect("player_damaged", _on_player_damaged)
+	for sig in ["listener_damaged", "listener_hit", "enemy_damaged"]:
+		if Game.has_signal(sig):
+			Game.connect(sig, _on_listener_damaged)
+			break
+	_read_health()
+
+
+func _read_health() -> void:
+	if "player_health" in Game:
+		_hp = float(Game.get("player_health"))
+	if "player_max_health" in Game:
+		_hp_max = maxf(float(Game.get("player_max_health")), 1.0)
+	if _hp_lag < 0.0:
+		_hp_lag = _hp
+
+
+func _combat_on() -> bool:
+	return Settings.damage_enabled and _hp >= 0.0
+
+
+func _on_health_changed(hp: Variant = null, max_hp: Variant = null) -> void:
+	var old := _hp
+	if hp != null:
+		_hp = float(hp)
+	if max_hp != null:
+		_hp_max = maxf(float(max_hp), 1.0)
+	if old >= 0.0 and _hp < old:
+		_hp_hit = 1.0
+	elif _hp > _hp_lag:
+		_hp_lag = _hp
+	_idle = 0.0
+
+
+func _on_player_damaged(_amount: Variant = null, _from: Variant = null) -> void:
+	_hp_hit = 1.0
+	_idle = 0.0
+	if not Settings.damage_enabled:
+		return
+	if Settings.damage_vignette and not Settings.no_flash:
+		_pulse_edge(Color(0.55, 0.0, 0.02), 1.0, 0.9)
+	elif Settings.damage_vignette:
+		_pulse_edge(Color(0.25, 0.0, 0.0), 0.5, 1.4)
+
+
+func _on_listener_damaged(a: Variant = null, b: Variant = null, c: Variant = null) -> void:
+	if not Settings.damage_numbers or not Settings.damage_enabled:
+		return
+	var amount := -1.0
+	var pos: Variant = null
+	for v in [a, b, c]:
+		if v is Vector3 and pos == null:
+			pos = v
+		elif v is Node3D and pos == null and is_instance_valid(v):
+			pos = (v as Node3D).global_position + Vector3(0.0, 1.6, 0.0)
+		elif (v is float or v is int) and amount < 0.0:
+			amount = float(v)
+	if pos == null or amount < 0.0:
+		return
+	var text := str(roundi(amount)) if absf(amount - roundf(amount)) < 0.05 else "%.1f" % amount
+	_dmg_numbers.append({"pos": pos, "text": text, "age": 0.0, "dx": randf_range(-12.0, 12.0)})
+	if _dmg_numbers.size() > 12:
+		_dmg_numbers.pop_front()
+
+
+func _update_combat(delta: float) -> void:
+	if _hp < 0.0 or not Game.has_signal("health_changed"):
+		_read_health()
+	_hp_hit = maxf(_hp_hit - delta * 2.0, 0.0)
+	if _hp_lag > _hp:
+		_hp_lag = move_toward(_hp_lag, _hp, delta * _hp_max * (0.15 if _hp_hit > 0.3 else 0.6))
+	else:
+		_hp_lag = _hp
+	var cool: float = float(_pget("attack_cooldown", 0.0))
+	if cool > _attack_max:
+		_attack_max = cool
+	for i in range(_dmg_numbers.size() - 1, -1, -1):
+		_dmg_numbers[i]["age"] += delta
+		if _dmg_numbers[i]["age"] > 1.1:
+			_dmg_numbers.remove_at(i)
+
+
+func _draw_health(p: Vector2, a: float) -> void:
+	if not _combat_on():
+		return
+	var w := 160.0
+	var h := 8.0
+	var frac := clampf(_hp / _hp_max, 0.0, 1.0)
+	var lag := clampf(_hp_lag / _hp_max, 0.0, 1.0)
+	var low := frac <= 0.3
+	var pulse := 0.75 + 0.25 * sin(_time * 6.0) if low and not Settings.no_flash else 1.0
+	var col := Color(0.86, 0.16, 0.14) if low else Color(0.78, 0.2, 0.18).lerp(Color(0.9, 0.85, 0.8), 0.25)
+	var shake := Vector2.ZERO
+	if _hp_hit > 0.0 and Settings.camera_shake > 0.05:
+		shake = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * 3.0 * _hp_hit * Settings.camera_shake
+	var r := Rect2(p + shake, Vector2(w, h))
+	_hud.draw_rect(r.grow(2.0), Color(0.0, 0.0, 0.0, 0.5 * a))
+	_hud.draw_rect(r, Color(0.25, 0.05, 0.05, 0.55 * a))
+	if lag > frac:
+		_hud.draw_rect(Rect2(r.position + Vector2(w * frac, 0.0), Vector2(w * (lag - frac), h)), Color(1.0, 0.85, 0.6, 0.7 * a))
+	_hud.draw_rect(Rect2(r.position, Vector2(w * frac, h)), Color(col.r, col.g, col.b, 0.92 * a * pulse))
+	if _hp_hit > 0.0:
+		_hud.draw_rect(r, Color(1.0, 1.0, 1.0, 0.35 * _hp_hit * a), false, 1.5)
+	var label := "%d / %d" % [ceili(maxf(_hp, 0.0)), roundi(_hp_max)]
+	_hud.draw_string(ThemeDB.fallback_font, r.position + Vector2(0.0, -6.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.9, 0.85, 0.82, 0.8 * a))
+	# Dagger icon next to the bar once the player carries it.
+	if "has_dagger" in Game and bool(Game.get("has_dagger")):
+		_draw_dagger(r.position + Vector2(w + 22.0, h * 0.5), a)
+
+
+func _draw_dagger(p: Vector2, a: float) -> void:
+	var blade := Color(0.85, 0.9, 0.95, 0.9 * a)
+	var grip := Color(0.55, 0.38, 0.22, 0.9 * a)
+	var tip := p + Vector2(8.0, -8.0)
+	var guard := p + Vector2(-2.0, 2.0)
+	_hud.draw_colored_polygon(PackedVector2Array([tip, guard + Vector2(-1.5, -1.5), guard + Vector2(1.5, 1.5)]), blade)
+	_hud.draw_line(guard + Vector2(-4.0, 4.0) - Vector2(-3.0, 3.0), guard + Vector2(3.0, -3.0) + Vector2(1.0, 1.0), grip, 2.0, true)
+	_hud.draw_line(guard, guard + Vector2(-6.0, 6.0), grip, 2.5, true)
+	var cool: float = float(_pget("attack_cooldown", 0.0))
+	if cool > 0.001:
+		var f := clampf(cool / maxf(_attack_max, 0.05), 0.0, 1.0)
+		_hud.draw_arc(p, 12.0, -PI * 0.5, -PI * 0.5 + TAU * f, 24, Color(1.0, 0.6, 0.5, 0.8 * a), 2.0, true)
+
+
+## Small ring around the crosshair while the strike recovers.
+func _draw_attack_ring(c: Vector2, a: float) -> void:
+	if not _combat_on() or not ("has_dagger" in Game and bool(Game.get("has_dagger"))):
+		return
+	var cool: float = float(_pget("attack_cooldown", 0.0))
+	if cool <= 0.001:
+		return
+	var f := clampf(cool / maxf(_attack_max, 0.05), 0.0, 1.0)
+	_hud.draw_arc(c, 22.0, PI * 0.75, PI * 0.75 + PI * 0.5 * f, 16, Color(1.0, 0.55, 0.45, 0.7 * a), 2.0, true)
+
+
+func _draw_damage_numbers() -> void:
+	if _dmg_numbers.is_empty():
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	for n in _dmg_numbers:
+		var pos: Vector3 = n["pos"]
+		if cam.is_position_behind(pos):
+			continue
+		var age: float = n["age"]
+		var sp := cam.unproject_position(pos) + Vector2(float(n["dx"]), -40.0 * age)
+		var al := 1.0 - smoothstep(0.6, 1.1, age)
+		var fs := 22 if age > 0.12 else 28
+		_hud.draw_string_outline(ThemeDB.fallback_font, sp, str(n["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1, fs, 4, Color(0.0, 0.0, 0.0, 0.7 * al))
+		_hud.draw_string(ThemeDB.fallback_font, sp, str(n["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color(1.0, 0.85, 0.4, al))

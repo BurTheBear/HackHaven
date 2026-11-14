@@ -64,6 +64,14 @@ const BREATH_REGEN := 4.0
 const GASP_NOISE := 8.0
 ## Noisy floors (area group "noise_floor", meta "noise"): footstep radius and sound.
 const FLOOR_NOISE := 6.0
+## Combat (damage mode only, with a dagger).
+const ATTACK_COOLDOWN := 1.0
+const ATTACK_RANGE := 1.8  ## From the player to the Listener's body surface.
+const ATTACK_CONE := 0.6  ## Cosine of the half-angle in front that a swing covers (~53 deg).
+const ATTACK_NOISE := 4.0
+const LISTENER_RADIUS := 0.5
+const VIEWMODEL_REST := Vector3(0.24, -0.22, -0.42)
+const DaggerModel := preload("res://scripts/combat_dagger_model.gd")
 const FLOOR_SOUNDS := {"puddle": "splash", "bones": "bone_crunch", "plank": "plank_creak"}
 
 @export var pebble_scene: PackedScene
@@ -86,6 +94,7 @@ var shake := 0.0  ## Set every frame by the Director (how close the Listeners ar
 var breath := 1.0  ## 0 - 1: how much held breath is left (HUD).
 var holding_breath := false  ## Silent while true (footsteps and floors make no noise).
 var is_hiding := false  ## Inside a hiding spot (group "hiding_spot"): can't move.
+var attack_cooldown := 0.0  ## Seconds until the dagger can swing again (HUD).
 var hide_exposed := false  ## Hiding but found / noisy: Listeners can catch you again.
 
 var _kick := 0.0  ## Extra shake for a moment (getting caught).
@@ -131,6 +140,9 @@ var _nudge := 0.0
 var _bob_phase := 0.0
 var _bob_amount := 0.0
 var _roll_time := 0.0
+var _viewmodel: Node3D
+var _swing_tween: Tween
+var _look_pending := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -141,7 +153,9 @@ func _ready() -> void:
 	_stand_height = head.position.y
 	_head_h = _stand_height
 	_build_arc()
+	_build_viewmodel()
 	Game.player_caught.connect(_on_caught)
+	Game.player_damaged.connect(_on_damaged)
 	Settings.changed.connect(_apply_settings)
 	_apply_settings()
 
@@ -163,16 +177,37 @@ func _unhandled_input(event: InputEvent) -> void:
 	if motion == null:
 		return
 	var sens: float = MOUSE_SENS * Settings.mouse_sensitivity
-	rotate_y(-motion.relative.x * sens)
 	var dy: float = motion.relative.y * sens
 	if Settings.invert_y:
 		dy = -dy
+	if float(Settings.mouse_smoothing) > 0.0:
+		_look_pending += Vector2(-motion.relative.x * sens, -dy)  # applied smoothly in _process
+		return
+	rotate_y(-motion.relative.x * sens)
 	_pitch(-dy)
+
+
+## Settings.mouse_smoothing: eases the queued mouse look in over a few frames.
+func _apply_smoothed_look(delta: float) -> void:
+	if _look_pending == Vector2.ZERO:
+		return
+	var smooth := clampf(float(Settings.mouse_smoothing), 0.0, 1.0)
+	var k := 1.0 if smooth <= 0.0 else 1.0 - exp(-lerpf(60.0, 8.0, smooth) * delta)
+	var step := _look_pending * k
+	_look_pending -= step
+	if _look_pending.length() < 0.00001:
+		step += _look_pending
+		_look_pending = Vector2.ZERO
+	rotate_y(step.x)
+	_pitch(step.y)
 
 
 func _process(delta: float) -> void:
 	if Game.state == Game.State.PLAYING and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_controller_look(delta)
+		_apply_smoothed_look(delta)
+	else:
+		_look_pending = Vector2.ZERO
 	_update_camera(delta)
 
 
@@ -388,11 +423,13 @@ func _on_landed(fall_speed: float) -> void:
 	if fall_speed < LAND_MIN_SPEED:
 		if from_jump:
 			Sfx.play("land", -14.0, &"Cave", randf_range(0.95, 1.08))
-			_dip_vel += 0.7 * _motion_scale()
+			if Settings.landing_motion:
+				_dip_vel += 0.7 * _motion_scale()
 		return
 	var t := clampf((fall_speed - LAND_MIN_SPEED) / 8.0, 0.0, 1.0)
 	Sfx.play("land", lerpf(-10.0, 0.0, t), &"Cave", randf_range(0.92, 1.05))
-	_dip_vel += lerpf(0.9, 2.6, t) * _motion_scale()
+	if Settings.landing_motion:
+		_dip_vel += lerpf(0.9, 2.6, t) * _motion_scale()
 	Echo.step()
 
 
@@ -480,6 +517,10 @@ func _surface() -> String:
 # ---------------------------------------------------------------- Actions
 
 func _actions(delta: float, can_act: bool) -> void:
+	attack_cooldown = maxf(attack_cooldown - delta, 0.0)
+	_update_viewmodel()
+	if can_act and Input.is_action_just_pressed("attack"):
+		try_attack()
 	var was_cooling := ping_cooldown > 0.0
 	ping_cooldown = maxf(ping_cooldown - delta, 0.0)
 	whisper_cooldown = maxf(whisper_cooldown - delta, 0.0)
@@ -806,6 +847,7 @@ func respawn(pos: Vector3, yaw: float = NAN) -> void:
 	global_position = pos
 	velocity = Vector3.ZERO
 	ping_cooldown = 0.0
+	attack_cooldown = 0.0
 	_ping_buffered = false
 	_fall_speed = 0.0
 	_was_on_floor = true
@@ -829,6 +871,13 @@ func respawn(pos: Vector3, yaw: float = NAN) -> void:
 		head.rotation.x = 0.0
 
 
+## Hurt by a Listener (damage mode): a jolt and a rumble.
+func _on_damaged(amount: int, _from: Vector3) -> void:
+	_kick = maxf(_kick, 0.012 * amount)
+	_nudge += 0.02 * amount * _motion_scale()
+	Settings.vibrate(0.4, 0.3 + 0.15 * amount, 0.25)
+
+
 ## Caught: snap to face the thing that got you.
 func _on_caught() -> void:
 	_kick = 0.08
@@ -847,7 +896,7 @@ func _update_camera(delta: float) -> void:
 	var dt := minf(delta, 0.05)
 	var gentle: bool = Settings.reduce_shake
 	_kick = maxf(_kick - delta * 0.15, 0.0)
-	var raw := shake + _kick
+	var raw := (shake + _kick) * Settings.shake_scale()
 	var s := raw * (SHAKE_REDUCED if gentle else 1.0)
 	camera.h_offset = randf_range(-s, s)
 	camera.v_offset = randf_range(-s, s)
@@ -885,3 +934,95 @@ func _update_camera(delta: float) -> void:
 		run_t = clampf((flat_speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED), 0.0, 1.0)
 	var base_fov: float = Settings.fov
 	camera.fov = lerpf(camera.fov, base_fov + RUN_FOV * run_t, 1.0 - exp(-6.0 * dt))
+
+
+# ---------------------------------------------------------------- Dagger (damage mode)
+
+func can_attack() -> bool:
+	return Game.has_dagger and Game.damage_enabled()
+
+
+## Swing the dagger: hits the nearest Listener in a short cone in front.
+func try_attack() -> void:
+	if not can_attack() or attack_cooldown > 0.0 or is_hiding:
+		return
+	attack_cooldown = ATTACK_COOLDOWN
+	_swing()
+	Sfx.play("dagger_swing", -4.0, &"Master", randf_range(0.95, 1.08))
+	Echo.make_noise(global_position, ATTACK_NOISE)
+	Game.add_stat("swings")
+	var target := _attack_target()
+	if target == null:
+		return
+	Sfx.play_3d("dagger_hit", target.global_position + Vector3.UP * 1.2, 0.0, &"Cave", randf_range(0.9, 1.1), 4.0, 25.0)
+	_nudge += 0.015 * _motion_scale()
+	var dmg := Game.dagger_damage()
+	target.call("take_damage", dmg, global_position)
+	Game.listener_damaged.emit(dmg, target.global_position + Vector3.UP * 1.8)
+	Game.add_stat("hits")
+	Settings.vibrate(0.3, 0.5, 0.15)
+
+
+func _attack_target() -> Node3D:
+	var eye := camera.global_position
+	var fwd := -camera.global_basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized()
+	var best: Node3D = null
+	var best_d := INF
+	for n in get_tree().get_nodes_in_group("listener"):
+		var l := n as Node3D
+		if l == null or l.get("is_dead") == true or not l.has_method("take_damage"):
+			continue
+		var to := l.global_position - global_position
+		if absf(to.y) > 2.0:
+			continue
+		to.y = 0.0
+		var d := to.length()
+		if d > ATTACK_RANGE + LISTENER_RADIUS:
+			continue
+		if d > 0.6 and fwd.dot(to / d) < ATTACK_CONE:
+			continue
+		# Nothing solid in between (world geometry only).
+		var q := PhysicsRayQueryParameters3D.create(eye, l.global_position + Vector3.UP * 1.2, 1)
+		q.exclude = [get_rid()]
+		if not get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			continue
+		if d < best_d:
+			best_d = d
+			best = l
+	return best
+
+
+## First-person dagger, lower right of the view.
+func _build_viewmodel() -> void:
+	var blade := DaggerModel.make_material(DaggerModel.STEEL, 0.55)
+	var grip := DaggerModel.make_material(DaggerModel.GRIP, 0.6)
+	_viewmodel = DaggerModel.build(blade, grip)
+	_viewmodel.name = "DaggerViewmodel"
+	camera.add_child(_viewmodel)
+	_viewmodel.position = VIEWMODEL_REST
+	_viewmodel.rotation_degrees = Vector3(10.0, 12.0, -8.0)
+	_viewmodel.visible = false
+
+
+func _update_viewmodel() -> void:
+	if _viewmodel != null:
+		_viewmodel.visible = can_attack() and not is_hiding
+
+
+func _swing() -> void:
+	if _viewmodel == null:
+		return
+	if _swing_tween != null and _swing_tween.is_valid():
+		_swing_tween.kill()
+	_viewmodel.position = VIEWMODEL_REST
+	_viewmodel.rotation_degrees = Vector3(10.0, 12.0, -8.0)
+	_swing_tween = create_tween()
+	# Wind up (pull back and up), stab forward and across, then return.
+	_swing_tween.tween_property(_viewmodel, "position", VIEWMODEL_REST + Vector3(0.06, 0.06, 0.1), 0.08)
+	_swing_tween.parallel().tween_property(_viewmodel, "rotation_degrees", Vector3(25.0, 25.0, -20.0), 0.08)
+	_swing_tween.tween_property(_viewmodel, "position", VIEWMODEL_REST + Vector3(-0.14, 0.04, -0.28), 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_swing_tween.parallel().tween_property(_viewmodel, "rotation_degrees", Vector3(-10.0, -10.0, 15.0), 0.1)
+	_swing_tween.tween_property(_viewmodel, "position", VIEWMODEL_REST, 0.3).set_trans(Tween.TRANS_SINE)
+	_swing_tween.parallel().tween_property(_viewmodel, "rotation_degrees", Vector3(10.0, 12.0, -8.0), 0.3)
