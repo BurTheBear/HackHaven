@@ -18,8 +18,6 @@ const LINES := [
 	["Assets · with Atharv", 15, "muted"],
 	["Atharv", 26, "text"],
 	["Assets · with Elias Chen", 15, "muted"],
-	["Ritesh", 26, "text"],
-	["Echo system · reveal shader · main scene · the ending", 15, "muted"],
 	["", 30, "text"],
 	["VOICES", 20, "gold"],
 	["Mara and the Listeners: recorded by the team", 17, "text"],
