@@ -6,7 +6,7 @@
 
 This library is stored in game/audio/freesound/. That subfolder is intentionally a library: it does not automatically replace the existing sound mix.
 
-The current Sfx loader checks res://audio/<event>.ogg, then .wav, then .mp3. To enable a candidate, copy its event-named file one directory up into game/audio/ and test the mix. For example, copy pebble.wav to game/audio/pebble.wav. Only enable one format per event name, and check for an older .ogg that would take priority over a .wav.
+The current Sfx loader checks `res://audio/<event>.ogg`, then .wav, then .mp3. To enable a candidate, copy its event-named file one directory up into game/audio/ and test the mix. For example, copy pebble.wav to game/audio/pebble.wav. Only enable one format per event name, and check for an older .ogg that would take priority over a .wav.
 
 Do not use source_step or other full sequences as a single footstep. Use step.wav or its alternate clips. Alternates require selecting different files in the caller; the existing loader does not randomize them automatically. No scripts, scenes or existing audio files are modified by adding this library.
 
