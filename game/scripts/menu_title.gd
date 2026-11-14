@@ -272,8 +272,8 @@ func _on_item_focus(b: Button) -> void:
 	var font_size: int = b.get_theme_font_size("font_size")
 	var text_size: Vector2 = font.get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 	var text_width: float = text_size.x
-	var ring_pos: Vector2 = item_center - Vector2(text_width * 0.5 + 26.0, 0.0)
-	_hover_rings.append({"pos": ring_pos, "age": 0.0})
+	#var ring_pos: Vector2 = item_center - Vector2(text_width * 0.5 + 26.0, 0.0)
+	#_hover_rings.append({"pos": ring_pos, "age": 0.0})
 
 
 ## Center of a control, in this menu's own coordinates.
