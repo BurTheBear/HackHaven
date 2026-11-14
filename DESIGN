@@ -1,0 +1,34 @@
+ECHO design doc
+
+Hack Club Haven game jam. Theme: Bounce Back. Made in Godot 4 by Shreyansh, Elias and Atharv.
+
+
+
+Your lantern broke deep underground and you can't see anything. The only way to see is to make noise. Every time you ping, the sound bounces off the walls and lights up the cave for a second, then it fades back to black. The catch is that the monsters down there are blind and hunt by sound, so every ping also tells them where you are.
+
+It fits the theme two ways. An echo is literally sound bouncing back, and the whole game is you bouncing back from falling into a cave and climbing your way out.
+
+What we wanted it to feel like
+
+
+Sound is how you see. Nothing shows up unless you made a noise to see it.
+
+
+
+Someone should get it within ten seconds of clicking. If a judge doesn't understand the first ping, we did something wrong.
+
+Small and finished beats big and broken. One good five to eight minute run is the goal.
+
+Story
+
+You're a cave explorer who fell through a sinkhole into an old mine called the Hollow. Your lantern smashed on the way down. The Hollow is full of Listeners, tall blind creatures that hunt anything they hear. You need to get back to the surface.
+
+We tell the story through the cave instead of text: abandoned mine carts, old ladders, chalk arrows left by someone who came before you, and a broken lantern where you land. When you finally reach the exit, the lights come on and you see the whole cave in color for the first time.
+
+
+
+Move with WASD or the arrow keys and look with the mouse. Left click pings, right click throws a pebble, Space jumps, Shift runs and C sneaks. V holds your breath, Q is a quieter ping, E is interact and R attacks. M or Tab opens the map and Esc pauses. Controllers work too.
+
+Mechanics
+
+Pinging sends a ring of light out from you. It travels at about 18 meters a second out to around 22 meters. Walls glow as the ring passes and then slowly fade over a couple of seconds. There's a short cooldown so you can't spam it, and any Listener the ring reaches hears it.
