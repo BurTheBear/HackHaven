@@ -20,7 +20,7 @@ const WHISPER_RADIUS := 6.0
 const WHISPER_COOLDOWN := 2.5
 const PING_BUFFER := 0.25  ## A ping pressed this close to the end of the cooldown fires when it ends.
 const THROW_SPEED := 9.0
-const THROW_LIFT := 2.0
+const THROW_RANGE := 30.0
 const AIM_SHOW_DELAY := 0.12  ## Hold throw this long to see the arc. A quick tap just throws.
 const ARC_DOTS := 30
 const ARC_SUBSTEPS := 3  ## Physics steps between two arc dots.
@@ -697,9 +697,34 @@ func _throw_origin() -> Vector3:
 	return spawn
 
 
-## How fast (and which way) a thrown pebble flies.
+## Where the crosshair is pointing: the first surface in view, or a point
+## THROW_RANGE ahead if there's nothing that close.
+func _throw_target() -> Vector3:
+	var from := camera.global_position
+	var to := from + _throw_forward() * THROW_RANGE
+	var hit := _ray(from, to)
+	if not hit.is_empty():
+		var point: Vector3 = hit["position"]
+		return point
+	return to
+
+
+## Launch velocity that lands the pebble on the crosshair target. Solves the
+## flight for gravity and linear damping (the same forces _draw_arc steps), so
+## the pebble and the arc both end where you aim. Flight time grows with
+## distance at THROW_SPEED, which gives a low, natural arc.
 func _throw_velocity() -> Vector3:
-	return _throw_forward() * THROW_SPEED + Vector3.UP * THROW_LIFT
+	var offset := _throw_target() - _throw_origin()
+	var t := clampf(offset.length() / THROW_SPEED, 0.12, 2.5)
+	var g := _gravity
+	var k := _pebble_damp
+	if k < 0.001:
+		return offset / t + Vector3.UP * (0.5 * g * t)
+	# With damping k: x(t) = v0 * (1 - e^-kt) / k, plus gravity on y.
+	var f := (1.0 - exp(-k * t)) / k
+	var v := offset / f
+	v.y = (offset.y + g * t / k) / f - g / k
+	return v
 
 
 ## Dotted gold arc: steps the same gravity and damping the pebble will feel

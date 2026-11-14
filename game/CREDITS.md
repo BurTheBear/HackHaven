@@ -69,3 +69,13 @@ All CC0 unless noted. Textures are 1K JPG, used as-is.
 | The Listener (listener.glb, from Listener_Web.glb) | Created for this project in Blender (AI-authored, see assets/listener/README.md) | project asset | n/a |
 
 Mine supports, rails, the cart and the backpack are built from primitive meshes in the engine, textured by the reveal shader. Rock spires, boulders and scree use the Poly Haven rock models above.
+
+## Fonts
+
+| Font | Designers | License |
+| --- | --- | --- |
+| Redaction (Regular, Italic, Bold) | Titus Kaphar, Reginald Dwayne Betts, Jeremy Mickel | SIL Open Font License 1.1 |
+
+## Jumpscare
+
+Listener jumpscare frames (assets/jumpscare/listener_attack.png) were rendered from the project's Blender Listener; its sound uses the CC0 recordings above (see assets/listener/jumpscare/README.md).
