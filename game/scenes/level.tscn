@@ -1410,19 +1410,6 @@ build_visual = false
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/HintWhisper" unique_id=560261408]
 shape = SubResource("BoxShape3D_3p5_3p0_1p5")
 
-[node name="HintChalk" type="Area3D" parent="Objects" unique_id=1383850466]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 1.5, -35.5)
-collision_layer = 0
-collision_mask = 2
-script = ExtResource("3_klq6b")
-kind = 5
-prompt_id = "chalk"
-floor_offset = -1.5
-build_visual = false
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/HintChalk" unique_id=2142307370]
-shape = SubResource("BoxShape3D_5p5_3p0_1p5")
-
 [node name="Pebbles02" type="Area3D" parent="Objects" unique_id=708124464]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 1, -37)
 collision_layer = 0
