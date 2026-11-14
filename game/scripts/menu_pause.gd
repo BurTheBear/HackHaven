@@ -23,6 +23,7 @@ var _logs_back: Button
 var _logs_button: Button
 
 
+## Builds the pause screen: title, info line, buttons, controls help and the logs page.
 func _ready() -> void:
 	Style.full_rect(self)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -60,11 +61,11 @@ func _ready() -> void:
 	list.offset_bottom = 280.0
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_main.add_child(list)
-	_add(list, "RESUME", func(): resume_pressed.emit())
-	_add(list, "RESTART FROM CHECKPOINT", func(): restart_pressed.emit())
-	_add(list, "SETTINGS", func(): settings_pressed.emit())
+	_add(list, "RESUME", _emit_resume)
+	_add(list, "RESTART FROM CHECKPOINT", _emit_restart)
+	_add(list, "SETTINGS", _emit_settings)
 	_logs_button = _add(list, "LOGS", show_logs)
-	_add(list, "QUIT TO TITLE", func(): quit_pressed.emit())
+	_add(list, "QUIT TO TITLE", _emit_quit)
 	Style.link_focus(_buttons)
 
 	_controls = Style.label("", 16, Style.MUTED)
@@ -80,6 +81,24 @@ func _ready() -> void:
 	visible = false
 
 
+## What each button does when chosen.
+func _emit_resume() -> void:
+	resume_pressed.emit()
+
+
+func _emit_restart() -> void:
+	restart_pressed.emit()
+
+
+func _emit_settings() -> void:
+	settings_pressed.emit()
+
+
+func _emit_quit() -> void:
+	quit_pressed.emit()
+
+
+## Adds one menu button. `action` is the function to run when it is chosen.
 func _add(list: VBoxContainer, text: String, action: Callable) -> Button:
 	var b := Style.chalk_button(text, 26)
 	b.custom_minimum_size = Vector2(0, 42)
@@ -91,34 +110,47 @@ func _add(list: VBoxContainer, text: String, action: Callable) -> Button:
 	return b
 
 
+## Click sound, then the button's action.
 func _on_pressed(action: Callable) -> void:
 	Sfx.play("ui_click", -6.0)
 	action.call()
 
 
+## Hover / focus sound.
 func _on_hover() -> void:
 	if visible:
 		Sfx.play("ui_hover", -12.0)
 
 
+## Shows the pause menu with the current zone and log count.
 func open() -> void:
 	visible = true
 	_main.visible = true
 	_logs_page.visible = false
-	var zone := Game.current_zone if Game.current_zone != "" else "THE HOLLOW"
-	_info.text = "%s     ·     Logs %d / %d" % [zone.to_upper(), Game.logs_found.size(), total_logs]
-	_logs_button.disabled = Game.logs_found.is_empty() and Game.journal_found.is_empty()
+	var zone: String = Game.current_zone
+	if zone == "":
+		zone = "THE HOLLOW"
+	var logs_count: int = Game.logs_found.size()
+	_info.text = "%s     ·     Logs %d / %d" % [zone.to_upper(), logs_count, total_logs]
+	# Nothing to read yet: the LOGS button is greyed out.
+	var nothing_found: bool = Game.logs_found.is_empty() and Game.journal_found.is_empty()
+	_logs_button.disabled = nothing_found
 	_controls.text = _controls_text()
 	_buttons[0].grab_focus()
 
 
+## Hides the pause menu.
 func close() -> void:
 	visible = false
 
 
+## The two lines of control reminders at the bottom.
 func _controls_text() -> String:
+	var move_keys: String = "[WASD]"
+	if Style.using_pad:
+		move_keys = "[Left stick]"
 	var parts := [
-		"Move %s" % ("[WASD]" if not Style.using_pad else "[Left stick]"),
+		"Move %s" % move_keys,
 		"Ping %s" % Style.key_name("ping"),
 		"Jump %s" % Style.key_name("jump"),
 		"Whisper %s" % Style.key_name("whisper"),
@@ -131,11 +163,14 @@ func _controls_text() -> String:
 		"Play log %s" % Style.key_name("interact"),
 		"Map %s" % Style.key_name("map"),
 	]
-	return "   ·   ".join(PackedStringArray(parts)) + "\n" + "   ·   ".join(PackedStringArray(parts2)) + "\n\nClick anywhere to resume"
+	var line1: String = "   ·   ".join(PackedStringArray(parts))
+	var line2: String = "   ·   ".join(PackedStringArray(parts2))
+	return line1 + "\n" + line2 + "\n\nClick anywhere to resume"
 
 
 # ---------------------------------------------------------------- Logs
 
+## Builds the (hidden) page that lists found logs and journal pages.
 func _build_logs_page() -> void:
 	_logs_page = Style.full_rect(Control.new())
 	_logs_page.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -171,15 +206,16 @@ func _build_logs_page() -> void:
 	_logs_page.visible = false
 
 
+## Fills the logs page with every found log and journal page, then shows it.
 func show_logs() -> void:
-	for c in _logs_list.get_children():
-		c.queue_free()
+	for child in _logs_list.get_children():
+		child.queue_free()
 	var found: Array = Game.logs_found.duplicate()
 	found.sort()
 	for idx in found:
 		var head := Style.label("LOG %d" % int(idx), 16, Style.GOLD, HORIZONTAL_ALIGNMENT_LEFT)
 		_logs_list.add_child(head)
-		var text := str(Game.log_texts.get(int(idx), Game.log_texts.get(str(idx), "(The recording is too damaged to replay.)")))
+		var text: String = _log_text(int(idx))
 		var body := Style.label("MARA —  " + text, 20, Style.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
 		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		body.custom_minimum_size = Vector2(700, 0)
@@ -187,11 +223,14 @@ func show_logs() -> void:
 	var pages: Array = Game.journal_found.duplicate()
 	pages.sort()
 	for idx in pages:
-		_logs_list.add_child(Style.label("JOURNAL PAGE %d" % (int(idx) + 1), 16, Style.CYAN, HORIZONTAL_ALIGNMENT_LEFT))
-		var jt := Style.label(str(Game.journal_texts.get(int(idx), "(The ink has run.)")), 20, Style.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
-		jt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		jt.custom_minimum_size = Vector2(700, 0)
-		_logs_list.add_child(jt)
+		var page_number: int = int(idx) + 1
+		var page_head := Style.label("JOURNAL PAGE %d" % page_number, 16, Style.CYAN, HORIZONTAL_ALIGNMENT_LEFT)
+		_logs_list.add_child(page_head)
+		var page_text: String = str(Game.journal_texts.get(int(idx), "(The ink has run.)"))
+		var page_body := Style.label(page_text, 20, Style.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
+		page_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		page_body.custom_minimum_size = Vector2(700, 0)
+		_logs_list.add_child(page_body)
 	if found.is_empty() and pages.is_empty():
 		_logs_list.add_child(Style.label("No recordings found yet.", 20, Style.MUTED))
 	_main.visible = false
@@ -199,6 +238,17 @@ func show_logs() -> void:
 	_logs_back.grab_focus()
 
 
+## Text of one voice log. Saved games may store the index as a number or a string.
+func _log_text(index: int) -> String:
+	if Game.log_texts.has(index):
+		return str(Game.log_texts[index])
+	var key_as_text: String = str(index)
+	if Game.log_texts.has(key_as_text):
+		return str(Game.log_texts[key_as_text])
+	return "(The recording is too damaged to replay.)"
+
+
+## Back from the logs page to the pause buttons.
 func hide_logs() -> void:
 	Sfx.play("ui_back", -6.0)
 	_logs_page.visible = false

@@ -72,7 +72,7 @@ const ATTACK_NOISE := 4.0
 const LISTENER_RADIUS := 0.5
 const VIEWMODEL_REST := Vector3(0.24, -0.22, -0.42)
 const DaggerModel := preload("res://scripts/combat_dagger_model.gd")
-const FLOOR_SOUNDS := {"puddle": "splash", "bones": "bone_crunch", "plank": "plank_creak"}
+const VIEWMODEL_REST_ROT := Vector3(10.0, 12.0, -8.0)
 
 @export var pebble_scene: PackedScene
 
@@ -145,6 +145,7 @@ var _swing_tween: Tween
 var _look_pending := Vector2.ZERO
 
 
+## Sets up sounds, the throw arc, the dagger, and listens for game events.
 func _ready() -> void:
 	if ping_sound.stream == null:
 		ping_sound.stream = Sfx.stream("ping")
@@ -170,6 +171,7 @@ func _apply_settings() -> void:
 		_run_on = false
 
 
+## Mouse look.
 func _unhandled_input(event: InputEvent) -> void:
 	if Game.state != Game.State.PLAYING or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
@@ -180,10 +182,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	var dy: float = motion.relative.y * sens
 	if Settings.invert_y:
 		dy = -dy
+	var dx: float = motion.relative.x * sens
 	if float(Settings.mouse_smoothing) > 0.0:
-		_look_pending += Vector2(-motion.relative.x * sens, -dy)  # applied smoothly in _process
+		# Save it up; _apply_smoothed_look() eases it in over a few frames.
+		_look_pending += Vector2(-dx, -dy)
 		return
-	rotate_y(-motion.relative.x * sens)
+	rotate_y(-dx)
 	_pitch(-dy)
 
 
@@ -192,7 +196,11 @@ func _apply_smoothed_look(delta: float) -> void:
 	if _look_pending == Vector2.ZERO:
 		return
 	var smooth := clampf(float(Settings.mouse_smoothing), 0.0, 1.0)
-	var k := 1.0 if smooth <= 0.0 else 1.0 - exp(-lerpf(60.0, 8.0, smooth) * delta)
+	# How much of the saved-up look to use this frame (more smoothing = less).
+	var k := 1.0
+	if smooth > 0.0:
+		var speed := lerpf(60.0, 8.0, smooth)
+		k = 1.0 - exp(-speed * delta)
 	var step := _look_pending * k
 	_look_pending -= step
 	if _look_pending.length() < 0.00001:
@@ -202,6 +210,7 @@ func _apply_smoothed_look(delta: float) -> void:
 	_pitch(step.y)
 
 
+## Every frame: controller look, smoothed mouse look and the camera feel.
 func _process(delta: float) -> void:
 	if Game.state == Game.State.PLAYING and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_controller_look(delta)
@@ -211,6 +220,7 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 
 
+## Every physics step: input, movement, noise, footsteps and actions.
 func _physics_process(delta: float) -> void:
 	Echo.set_player_position(global_position)
 	# A gap in physics frames means the tree was paused.
@@ -219,13 +229,7 @@ func _physics_process(delta: float) -> void:
 	_last_frame = frame
 	# Don't simulate on the title screen or while caught.
 	if Game.state != Game.State.PLAYING:
-		velocity = Vector3.ZERO
-		_act_blocked = true
-		_cancel_aim()
-		_ping_buffered = false
-		is_running = false
-		holding_breath = false
-		noise_radius = 0.0
+		_stop_while_not_playing()
 		return
 	# Swallow presses on the first tick after starting / resuming, so the
 	# click that locked the mouse doesn't also ping.
@@ -236,11 +240,7 @@ func _physics_process(delta: float) -> void:
 		_cancel_aim()
 		_ping_buffered = false
 
-	# Challenge: one pebble at most.
-	if Echo.challenge() == "one_pebble" and (Game.max_pebbles != 1 or Game.pebbles > 1):
-		Game.max_pebbles = 1
-		Game.pebbles = mini(Game.pebbles, 1)
-		Game.pebbles_changed.emit(Game.pebbles)
+	_enforce_one_pebble()
 	_update_breath(can_act, delta)
 	_update_hiding(can_act)
 	if is_hiding:
@@ -260,19 +260,9 @@ func _physics_process(delta: float) -> void:
 		_jump()
 	_move(input, has_input, delta)
 	var moving := has_input and is_on_floor()
-	_update_stamina(delta, is_running and moving, has_input)
-	if not moving or is_sneaking or holding_breath:
-		noise_radius = 0.0
-	elif is_running:
-		noise_radius = RUN_NOISE
-	else:
-		noise_radius = WALK_NOISE
-	_floor_kind = ""
-	if moving and not holding_breath:
-		_floor_kind = _noise_floor_kind()
-		if _floor_kind != "":
-			# Puddles, bones, planks: loud under a walk, half as loud when sneaking.
-			noise_radius = maxf(noise_radius, FLOOR_NOISE * (0.5 if is_sneaking else 1.0))
+	var sprinting := is_running and moving
+	_update_stamina(delta, sprinting, has_input)
+	_update_noise_radius(moving)
 	_footsteps(delta, moving)
 	_actions(delta, can_act)
 	# Fell into the chasm or out of the level.
@@ -281,8 +271,53 @@ func _physics_process(delta: float) -> void:
 		respawn(Game.checkpoint_position, Game.checkpoint_yaw)
 
 
+## On the title screen or while caught: stand still and drop any action.
+func _stop_while_not_playing() -> void:
+	velocity = Vector3.ZERO
+	_act_blocked = true
+	_cancel_aim()
+	_ping_buffered = false
+	is_running = false
+	holding_breath = false
+	noise_radius = 0.0
+
+
+## Challenge "one_pebble": you can never carry more than one pebble.
+func _enforce_one_pebble() -> void:
+	if Echo.challenge() != "one_pebble":
+		return
+	if Game.max_pebbles == 1 and Game.pebbles <= 1:
+		return
+	Game.max_pebbles = 1
+	Game.pebbles = mini(Game.pebbles, 1)
+	Game.pebbles_changed.emit(Game.pebbles)
+
+
+## How far Listeners can hear your footsteps right now.
+func _update_noise_radius(moving: bool) -> void:
+	if not moving or is_sneaking or holding_breath:
+		noise_radius = 0.0
+	elif is_running:
+		noise_radius = RUN_NOISE
+	else:
+		noise_radius = WALK_NOISE
+
+	# Noisy floors (puddles, bones, planks): loud under a walk, half as loud
+	# when sneaking.
+	_floor_kind = ""
+	if moving and not holding_breath:
+		_floor_kind = _noise_floor_kind()
+		if _floor_kind != "":
+			var floor_noise := FLOOR_NOISE
+			if is_sneaking:
+				floor_noise = FLOOR_NOISE * 0.5
+			if floor_noise > noise_radius:
+				noise_radius = floor_noise
+
+
 # ---------------------------------------------------------------- Look
 
+## Tilts the head up or down, never past PITCH_LIMIT.
 func _pitch(amount: float) -> void:
 	var limit := deg_to_rad(PITCH_LIMIT)
 	head.rotation.x = clampf(head.rotation.x + amount, -limit, limit)
@@ -294,7 +329,9 @@ func _controller_look(delta: float) -> void:
 	var mag := look.length()
 	if mag < 0.001:
 		return
-	var curved := look / mag * pow(minf(mag, 1.0), PAD_LOOK_CURVE)
+	var direction := look / mag
+	var strength := pow(minf(mag, 1.0), PAD_LOOK_CURVE)
+	var curved := direction * strength
 	var speed: float = PAD_LOOK_SPEED * Settings.controller_look_speed
 	rotate_y(-curved.x * speed * delta)
 	var dy := curved.y * speed * PAD_PITCH_RATIO * delta
@@ -303,12 +340,16 @@ func _controller_look(delta: float) -> void:
 	_pitch(-dy)
 
 
+## Turns the body and head to face point p.
 func look_toward(p: Vector3) -> void:
 	var to := p - head.global_position
 	if to.length() < 0.01:
 		return
 	rotation.y = atan2(-to.x, -to.z)
-	head.rotation.x = clampf(atan2(to.y, Vector2(to.x, to.z).length()), deg_to_rad(-PITCH_LIMIT), deg_to_rad(PITCH_LIMIT))
+	var flat_length := Vector2(to.x, to.z).length()
+	var pitch := atan2(to.y, flat_length)
+	var limit := deg_to_rad(PITCH_LIMIT)
+	head.rotation.x = clampf(pitch, -limit, limit)
 
 
 # ---------------------------------------------------------------- Movement
@@ -341,11 +382,17 @@ func _update_modes(can_act: bool, has_input: bool, delta: float) -> void:
 	else:
 		_run_on = Input.is_action_pressed("run")
 	is_sneaking = _sneak_on
-	is_running = _run_on and not is_sneaking and has_input and not is_winded and is_on_floor() and not holding_breath
+	# Running needs: run on, not sneaking, moving, not out of breath,
+	# on the floor and not holding your breath.
+	is_running = false
+	if _run_on and not is_sneaking and has_input:
+		if not is_winded and is_on_floor() and not holding_breath:
+			is_running = true
 	if is_sneaking and not was_sneaking:
 		_dip_vel += SNEAK_DIP * _motion_scale()
 
 
+## Speeds up / slows down toward the wanted speed, applies gravity and moves.
 func _move(input: Vector2, has_input: bool, delta: float) -> void:
 	var speed := WALK_SPEED
 	if is_sneaking:
@@ -359,8 +406,10 @@ func _move(input: Vector2, has_input: bool, delta: float) -> void:
 	var on_floor := is_on_floor()
 	var flat := Vector3(velocity.x, 0.0, velocity.z)
 	var rate := AIR_ACCEL
-	if on_floor:
-		rate = ACCEL if has_input else DECEL
+	if on_floor and has_input:
+		rate = ACCEL
+	elif on_floor:
+		rate = DECEL
 	flat = flat.move_toward(wish * speed, rate * delta)
 	velocity.x = flat.x
 	velocity.z = flat.z
@@ -393,10 +442,14 @@ func _wall_contact(wish: Vector3, pre: Vector3, delta: float) -> void:
 			var impact := -pre.dot(n)
 			if impact > BUMP_SPEED and _bump_cooldown <= 0.0:
 				_bump(impact)
-	var rate := 12.0 if target < _wall_slow else 3.0
+	# Slow down fast, recover slowly.
+	var rate := 3.0
+	if target < _wall_slow:
+		rate = 12.0
 	_wall_slow = move_toward(_wall_slow, target, rate * delta)
 
 
+## Walked into a wall: a thud and a small camera knock.
 func _bump(impact: float) -> void:
 	_bump_cooldown = BUMP_COOLDOWN
 	var t := clampf((impact - BUMP_SPEED) / (RUN_SPEED - BUMP_SPEED), 0.0, 1.0)
@@ -407,6 +460,7 @@ func _bump(impact: float) -> void:
 	Echo.step()
 
 
+## Jump up (with a small camera dip).
 func _jump() -> void:
 	_jump_cooldown = JUMP_COOLDOWN
 	_jumped = true
@@ -415,6 +469,7 @@ func _jump() -> void:
 	_dip_vel += 0.45 * _motion_scale()
 
 
+## Landed: a thud and a camera dip, bigger for longer falls.
 func _on_landed(fall_speed: float) -> void:
 	var from_jump := _jumped
 	_jumped = false
@@ -433,6 +488,7 @@ func _on_landed(fall_speed: float) -> void:
 	Echo.step()
 
 
+## Sprinting uses stamina; it refills after a short pause. At 0 you're winded.
 func _update_stamina(delta: float, sprinting: bool, has_input: bool) -> void:
 	var sprint_time := STAMINA_TIME
 	var refill_time := STAMINA_REFILL
@@ -465,9 +521,12 @@ func _update_stamina(delta: float, sprinting: bool, has_input: bool) -> void:
 	_breath_timer -= delta
 	if _breath_timer <= 0.0:
 		_breath_timer = 0.8
-		Sfx.play("pant", lerpf(-6.0, -14.0, stamina / WINDED_RECOVER), &"Cave", randf_range(0.95, 1.05))
+		var recovered := stamina / WINDED_RECOVER
+		var volume := lerpf(-6.0, -14.0, recovered)
+		Sfx.play("pant", volume, &"Cave", randf_range(0.95, 1.05))
 
 
+## Plays a footstep every so often while moving (and makes noise for Listeners).
 func _footsteps(delta: float, moving: bool) -> void:
 	if not moving:
 		_step_timer = 0.0
@@ -486,10 +545,14 @@ func _footsteps(delta: float, moving: bool) -> void:
 		Echo.make_noise(global_position, noise_radius)
 	if holding_breath:
 		return
-	if _floor_kind != "":
-		var floor_sound: String = str(FLOOR_SOUNDS.get(_floor_kind, ""))
-		if floor_sound != "":
-			Sfx.play(floor_sound, -14.0 if is_sneaking else -4.0, &"Cave", randf_range(0.9, 1.1))
+	# Noisy floor: an extra splash / crunch / creak.
+	var floor_sound := _floor_sound(_floor_kind)
+	if floor_sound != "":
+		var floor_volume := -4.0
+		if is_sneaking:
+			floor_volume = -14.0
+		Sfx.play(floor_sound, floor_volume, &"Cave", randf_range(0.9, 1.1))
+	# The step itself sounds different on wood, gravel and water.
 	var surface := _surface()
 	var sound := "step"
 	if surface in SURFACES:
@@ -505,9 +568,22 @@ func _footsteps(delta: float, moving: bool) -> void:
 	step_sound.play()
 
 
+## The extra sound a noisy floor makes ("" = none).
+func _floor_sound(kind: String) -> String:
+	match kind:
+		"puddle":
+			return "splash"
+		"bones":
+			return "bone_crunch"
+		"plank":
+			return "plank_creak"
+	return ""
+
+
 ## Floor type under the player, from the level's "surface" areas ("" = stone).
 func _surface() -> String:
-	for node in (get_tree().get_nodes_in_group("surface") as Array):
+	var areas: Array[Node] = get_tree().get_nodes_in_group("surface")
+	for node in areas:
 		var area := node as Area3D
 		if area != null and area.overlaps_body(self):
 			return str(area.get_meta("surface", ""))
@@ -516,6 +592,7 @@ func _surface() -> String:
 
 # ---------------------------------------------------------------- Actions
 
+## Dagger, ping, whisper, chalk and throw buttons.
 func _actions(delta: float, can_act: bool) -> void:
 	attack_cooldown = maxf(attack_cooldown - delta, 0.0)
 	_update_viewmodel()
@@ -547,6 +624,7 @@ func _actions(delta: float, can_act: bool) -> void:
 	_update_aim(delta)
 
 
+## The main ping: a loud echo that lights up the cave (and Listeners hear it).
 func try_ping() -> void:
 	if ping_cooldown > 0.0 or Echo.challenge() == "no_ping":
 		return
@@ -572,6 +650,7 @@ func try_whisper() -> void:
 	Game.add_stat("whispers")
 
 
+## Throw pressed: start aiming (or say there are no pebbles left).
 func _begin_aim() -> void:
 	if Game.pebbles <= 0:
 		Game.prompt_requested.emit("pebbles_empty")
@@ -594,12 +673,14 @@ func _update_aim(delta: float) -> void:
 		_draw_arc()
 
 
+## Stop aiming and hide the arc.
 func _cancel_aim() -> void:
 	_aiming = false
 	if _arc_root != null:
 		_arc_root.visible = false
 
 
+## Throws a pebble forward (if you have one).
 func throw_pebble() -> void:
 	if pebble_scene == null:
 		return
@@ -614,22 +695,25 @@ func throw_pebble() -> void:
 	Game.add_stat("pebbles_thrown")
 
 
+## The direction you look in.
 func _throw_forward() -> Vector3:
 	return -head.global_basis.z
 
 
+## Where a thrown pebble appears: a little in front of the camera.
 func _throw_origin() -> Vector3:
 	var forward := _throw_forward()
 	var from := camera.global_position
 	var spawn := from + forward * 0.6
 	# Facing a wall: spawn in front of it, not inside it.
-	var hit := get_world_3d().direct_space_state.intersect_ray(
-		PhysicsRayQueryParameters3D.create(from, spawn, 1))
-	if hit:
-		spawn = (hit["position"] as Vector3) - forward * 0.15
+	var hit := _ray(from, spawn)
+	if not hit.is_empty():
+		var wall: Vector3 = hit["position"]
+		spawn = wall - forward * 0.15
 	return spawn
 
 
+## How fast (and which way) a thrown pebble flies.
 func _throw_velocity() -> Vector3:
 	return _throw_forward() * THROW_SPEED + Vector3.UP * THROW_LIFT
 
@@ -653,16 +737,25 @@ func _draw_arc() -> void:
 		var dot := _arc_dots[i]
 		shown = i + 1
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(prev, p, 1))
-		if hit:
-			dot.position = hit["position"] as Vector3
+		if not hit.is_empty():
+			# It would hit something here: show a bigger dot and stop.
+			var hit_pos: Vector3 = hit["position"]
+			dot.position = hit_pos
 			dot.scale = Vector3.ONE * 2.4
 			break
 		dot.position = p
-		dot.scale = Vector3.ONE * lerpf(1.0, 0.55, float(i) / float(ARC_DOTS))
+		# Dots get smaller along the arc.
+		var along := float(i) / float(ARC_DOTS)
+		dot.scale = Vector3.ONE * lerpf(1.0, 0.55, along)
+	# Only show the dots we used.
 	for j in ARC_DOTS:
-		_arc_dots[j].visible = j < shown
+		if j < shown:
+			_arc_dots[j].visible = true
+		else:
+			_arc_dots[j].visible = false
 
 
+## Makes the (hidden) dots used to draw the throw arc.
 func _build_arc() -> void:
 	_arc_root = Node3D.new()
 	_arc_root.name = "ThrowArc"
@@ -690,48 +783,74 @@ func _build_arc() -> void:
 ## Chalk mark on the floor: faint gold (or white), numbered, stays after the
 ## echo fades. Your own map.
 func drop_mark() -> void:
+	# Find the floor under the player.
 	var from := global_position + Vector3.UP * 0.5
-	var hit := get_world_3d().direct_space_state.intersect_ray(
-		PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 2.0, 1))
+	var hit := _ray(from, from + Vector3.DOWN * 2.0)
 	if hit.is_empty():
 		return
 	if _mark_mesh == null:
-		_mark_mesh = CylinderMesh.new()
-		_mark_mesh.top_radius = 0.2
-		_mark_mesh.bottom_radius = 0.2
-		_mark_mesh.height = 0.02
-		_mark_gold = _chalk_material(CHALK_GOLD)
-		_mark_white = _chalk_material(CHALK_WHITE)
+		_make_mark_resources()
 	_mark_count += 1
+
+	# Pick gold or white.
+	var material := _mark_gold
+	var color := CHALK_GOLD
+	var label_color := LABEL_GOLD
+	var pitch := 1.0
+	if chalk_white:
+		material = _mark_white
+		color = CHALK_WHITE
+		label_color = LABEL_WHITE
+		pitch = 1.15
+
 	var mark := MeshInstance3D.new()
 	mark.mesh = _mark_mesh
-	mark.material_override = _mark_white if chalk_white else _mark_gold
+	mark.material_override = material
 	mark.add_to_group("chalk_mark")
 	mark.set_meta("number", _mark_count)
-	mark.set_meta("color", CHALK_WHITE if chalk_white else CHALK_GOLD)
+	mark.set_meta("color", color)
+	mark.add_child(_make_mark_label(_mark_count, label_color))
+	get_parent().add_child(mark)
+	var floor_pos: Vector3 = hit["position"]
+	mark.global_position = floor_pos + Vector3.UP * 0.015
+
+	# Keep only the newest MAX_MARKS marks.
+	_marks.append(mark)
+	if _marks.size() > MAX_MARKS:
+		var old: Node3D = _marks.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
+	Sfx.play("chalk", -8.0, &"Cave", pitch)
+	Game.add_stat("chalk")
+
+
+## The disc mesh and the two chalk materials (made once, shared by all marks).
+func _make_mark_resources() -> void:
+	_mark_mesh = CylinderMesh.new()
+	_mark_mesh.top_radius = 0.2
+	_mark_mesh.bottom_radius = 0.2
+	_mark_mesh.height = 0.02
+	_mark_gold = _chalk_material(CHALK_GOLD)
+	_mark_white = _chalk_material(CHALK_WHITE)
+
+
+## The floating number above a chalk mark.
+func _make_mark_label(number: int, label_color: Color) -> Label3D:
 	var label := Label3D.new()
-	label.text = str(_mark_count)
+	label.text = str(number)
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
 	label.font_size = 48
 	label.pixel_size = 0.004
 	label.outline_size = 6
 	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.6)
-	label.modulate = LABEL_WHITE if chalk_white else LABEL_GOLD
+	label.modulate = label_color
 	label.visibility_range_end = 30.0
 	label.position = Vector3(0.0, 0.3, 0.0)
-	mark.add_child(label)
-	get_parent().add_child(mark)
-	mark.global_position = (hit["position"] as Vector3) + Vector3.UP * 0.015
-	_marks.append(mark)
-	if _marks.size() > MAX_MARKS:
-		var old: Node3D = _marks.pop_front()
-		if is_instance_valid(old):
-			old.queue_free()
-	Sfx.play("chalk", -8.0, &"Cave", 1.15 if chalk_white else 1.0)
-	Game.add_stat("chalk")
+	return label
 
 
+## A flat, unshaded material for chalk.
 func _chalk_material(color: Color) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -743,7 +862,10 @@ func _chalk_material(color: Color) -> StandardMaterial3D:
 
 ## Hold "hold_breath": silent, but only for BREATH_TIME. Running out is a loud gasp.
 func _update_breath(can_act: bool, delta: float) -> void:
-	var want := can_act and Input.is_action_pressed("hold_breath") and not _breath_locked and breath > 0.0
+	var want := false
+	if can_act and Input.is_action_pressed("hold_breath"):
+		if not _breath_locked and breath > 0.0:
+			want = true
 	if want and not holding_breath:
 		holding_breath = true
 		Sfx.play("breath_hold", -8.0, &"Cave")
@@ -770,9 +892,7 @@ func _update_hiding(can_act: bool) -> void:
 	if not can_act:
 		return
 	if not Input.is_action_just_pressed("interact"):
-		if not is_hiding and not _hide_hinted and Engine.get_physics_frames() % 6 == 0 and _find_hiding_spot() != null:
-			_hide_hinted = true
-			Game.show_subtitle("A crevice. Press interact to hide in it. Again to come out.")
+		_maybe_show_hide_hint()
 		return
 	if is_hiding:
 		is_hiding = false
@@ -799,8 +919,23 @@ func _update_hiding(can_act: bool) -> void:
 	Sfx.play("click", -12.0, &"Cave", 0.8)
 
 
+## The first time you stand in a hiding spot, explain how to hide.
+func _maybe_show_hide_hint() -> void:
+	if is_hiding or _hide_hinted:
+		return
+	# Only check every 6th physics frame (it's a little expensive).
+	if Engine.get_physics_frames() % 6 != 0:
+		return
+	if _find_hiding_spot() == null:
+		return
+	_hide_hinted = true
+	Game.show_subtitle("A crevice. Press interact to hide in it. Again to come out.")
+
+
+## The hiding spot you are standing in (or null).
 func _find_hiding_spot() -> Area3D:
-	for node in (get_tree().get_nodes_in_group("hiding_spot") as Array):
+	var areas: Array[Node] = get_tree().get_nodes_in_group("hiding_spot")
+	for node in areas:
 		var area := node as Area3D
 		if area != null and area.overlaps_body(self):
 			return area
@@ -811,7 +946,8 @@ func _find_hiding_spot() -> Area3D:
 func _noise_floor_kind() -> String:
 	if not is_on_floor():
 		return ""
-	for node in (get_tree().get_nodes_in_group("noise_floor") as Array):
+	var areas: Array[Node] = get_tree().get_nodes_in_group("noise_floor")
+	for node in areas:
 		var area := node as Area3D
 		if area != null and area.overlaps_body(self):
 			return str(area.get_meta("noise", ""))
@@ -825,7 +961,10 @@ func is_hidden() -> bool:
 
 ## Still, sneaking, holding your breath or hidden: a Listener passing is a near miss.
 func is_quiet() -> bool:
-	return is_hidden() or holding_breath or is_sneaking or Vector2(velocity.x, velocity.z).length() < 0.5
+	if is_hidden() or holding_breath or is_sneaking:
+		return true
+	var flat_speed := Vector2(velocity.x, velocity.z).length()
+	return flat_speed < 0.5
 
 
 ## A Listener found you in your hiding spot.
@@ -888,56 +1027,93 @@ func _on_caught() -> void:
 
 # ---------------------------------------------------------------- Camera
 
+## Camera knocks are smaller with the "reduce shake" setting.
 func _motion_scale() -> float:
-	return 0.4 if Settings.reduce_shake else 1.0
+	if Settings.reduce_shake:
+		return 0.4
+	return 1.0
 
 
+## A smooth-follow amount for this frame: higher `speed` catches up faster.
+func _smooth(speed: float, dt: float) -> float:
+	return 1.0 - exp(-speed * dt)
+
+
+## Every frame: shake, head height, bob, roll and FOV.
 func _update_camera(delta: float) -> void:
-	var dt := minf(delta, 0.05)
-	var gentle: bool = Settings.reduce_shake
+	var dt := minf(delta, 0.05)  # don't jump after a long frame
+	var raw_shake := _update_shake(delta)
+	var flat_speed := Vector2(velocity.x, velocity.z).length()
+	_update_head_position(dt, flat_speed)
+	_update_camera_tilt(dt, raw_shake)
+	_update_fov(dt, flat_speed)
+
+
+## Random camera jitter from the dread and from getting hit.
+## Returns the shake strength (before "reduce shake") for the roll.
+func _update_shake(delta: float) -> float:
 	_kick = maxf(_kick - delta * 0.15, 0.0)
-	var raw := (shake + _kick) * Settings.shake_scale()
-	var s := raw * (SHAKE_REDUCED if gentle else 1.0)
+	var raw: float = (shake + _kick) * Settings.shake_scale()
+	var s := raw
+	if Settings.reduce_shake:
+		s = raw * SHAKE_REDUCED
 	camera.h_offset = randf_range(-s, s)
 	camera.v_offset = randf_range(-s, s)
+	return raw
 
-	# Sneaking lowers the head; landings, bumps and crouching dip it on a spring.
-	var stand := _stand_height - (SNEAK_DROP if is_sneaking or is_hiding else 0.0)
-	_head_h = lerpf(_head_h, stand, 1.0 - exp(-8.0 * dt))
-	_dip_vel += (-DIP_STIFF * _dip - DIP_DAMP * _dip_vel) * dt
+
+## Head height: lower while sneaking, a springy dip on landings and bumps,
+## and the optional head bob.
+func _update_head_position(dt: float, flat_speed: float) -> void:
+	var stand := _stand_height
+	if is_sneaking or is_hiding:
+		stand = _stand_height - SNEAK_DROP
+	_head_h = lerpf(_head_h, stand, _smooth(8.0, dt))
+
+	# The dip is a spring: it is pulled back to 0 and slowed down by damping.
+	var spring_force := -DIP_STIFF * _dip - DIP_DAMP * _dip_vel
+	_dip_vel += spring_force * dt
 	_dip = clampf(_dip + _dip_vel * dt, -0.1, 0.3)
 
 	# Head bob (only with the setting on).
-	var flat_speed := Vector2(velocity.x, velocity.z).length()
 	var bob_target := 0.0
 	if Settings.head_bob and is_on_floor() and Game.state == Game.State.PLAYING:
 		bob_target = clampf(flat_speed / WALK_SPEED, 0.0, 1.5)
-	_bob_amount = lerpf(_bob_amount, bob_target, 1.0 - exp(-6.0 * dt))
+	_bob_amount = lerpf(_bob_amount, bob_target, _smooth(6.0, dt))
 	_bob_phase = fmod(_bob_phase + flat_speed * BOB_RATE * dt, TAU)
 	var bob_y := sin(_bob_phase * 2.0) * BOB_HEIGHT * _bob_amount
 	var bob_x := sin(_bob_phase) * BOB_SWAY * _bob_amount
 	head.position = Vector3(bob_x, _head_h + bob_y - _dip, 0.0)
 
-	# Bump nudge (pitch) and a slow uneasy roll when the shake is high.
-	_nudge = lerpf(_nudge, 0.0, 1.0 - exp(-9.0 * dt))
+
+## Bump nudge (pitch) and a slow uneasy roll when the shake is high.
+func _update_camera_tilt(dt: float, raw_shake: float) -> void:
+	_nudge = lerpf(_nudge, 0.0, _smooth(9.0, dt))
 	camera.rotation.x = _nudge
 	var roll := 0.0
-	if not gentle:
+	if not Settings.reduce_shake:
 		_roll_time += dt
-		var amount := clampf((raw - 0.006) / 0.03, 0.0, 1.0) * ROLL_MAX
-		roll = amount * (sin(_roll_time * 1.7) * 0.7 + sin(_roll_time * 4.3 + 1.0) * 0.3)
-	camera.rotation.z = lerpf(camera.rotation.z, roll, 1.0 - exp(-5.0 * dt))
+		var amount := clampf((raw_shake - 0.006) / 0.03, 0.0, 1.0) * ROLL_MAX
+		# Two slow waves mixed together, so the roll doesn't look regular.
+		var wave_a := sin(_roll_time * 1.7) * 0.7
+		var wave_b := sin(_roll_time * 4.3 + 1.0) * 0.3
+		roll = amount * (wave_a + wave_b)
+	camera.rotation.z = lerpf(camera.rotation.z, roll, _smooth(5.0, dt))
 
-	# FOV from the settings, a little wider at a sprint.
+
+## FOV from the settings, a little wider at a sprint.
+func _update_fov(dt: float, flat_speed: float) -> void:
 	var run_t := 0.0
 	if is_running:
 		run_t = clampf((flat_speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED), 0.0, 1.0)
 	var base_fov: float = Settings.fov
-	camera.fov = lerpf(camera.fov, base_fov + RUN_FOV * run_t, 1.0 - exp(-6.0 * dt))
+	var want_fov := base_fov + RUN_FOV * run_t
+	camera.fov = lerpf(camera.fov, want_fov, _smooth(6.0, dt))
 
 
 # ---------------------------------------------------------------- Dagger (damage mode)
 
+## True if you have the dagger and damage mode is on.
 func can_attack() -> bool:
 	return Game.has_dagger and Game.damage_enabled()
 
@@ -963,35 +1139,53 @@ func try_attack() -> void:
 	Settings.vibrate(0.3, 0.5, 0.15)
 
 
+## The closest living Listener in front of you and in reach (or null).
 func _attack_target() -> Node3D:
-	var eye := camera.global_position
-	var fwd := -camera.global_basis.z
-	fwd.y = 0.0
-	fwd = fwd.normalized()
+	var forward := -camera.global_basis.z
+	forward.y = 0.0
+	forward = forward.normalized()
 	var best: Node3D = null
 	var best_d := INF
-	for n in get_tree().get_nodes_in_group("listener"):
-		var l := n as Node3D
-		if l == null or l.get("is_dead") == true or not l.has_method("take_damage"):
+	var listeners: Array[Node] = get_tree().get_nodes_in_group("listener")
+	for node in listeners:
+		var l := node as Node3D
+		if l == null:
+			continue
+		if l.get("is_dead") == true or not l.has_method("take_damage"):
 			continue
 		var to := l.global_position - global_position
 		if absf(to.y) > 2.0:
-			continue
+			continue  # on another floor
 		to.y = 0.0
 		var d := to.length()
 		if d > ATTACK_RANGE + LISTENER_RADIUS:
-			continue
-		if d > 0.6 and fwd.dot(to / d) < ATTACK_CONE:
-			continue
-		# Nothing solid in between (world geometry only).
-		var q := PhysicsRayQueryParameters3D.create(eye, l.global_position + Vector3.UP * 1.2, 1)
-		q.exclude = [get_rid()]
-		if not get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			continue  # too far
+		if d > 0.6:
+			var facing := forward.dot(to / d)
+			if facing < ATTACK_CONE:
+				continue  # not in front of you
+		if not _can_reach(l):
 			continue
 		if d < best_d:
 			best_d = d
 			best = l
 	return best
+
+
+## True if nothing solid (world geometry only) is between your eyes and the Listener.
+func _can_reach(l: Node3D) -> bool:
+	var eye := camera.global_position
+	var target := l.global_position + Vector3.UP * 1.2
+	var query := PhysicsRayQueryParameters3D.create(eye, target, 1)
+	query.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return hit.is_empty()
+
+
+## Casts a ray against the world (layer 1). Empty if it hit nothing.
+func _ray(from: Vector3, to: Vector3) -> Dictionary:
+	var query := PhysicsRayQueryParameters3D.create(from, to, 1)
+	return get_world_3d().direct_space_state.intersect_ray(query)
 
 
 ## First-person dagger, lower right of the view.
@@ -1002,27 +1196,39 @@ func _build_viewmodel() -> void:
 	_viewmodel.name = "DaggerViewmodel"
 	camera.add_child(_viewmodel)
 	_viewmodel.position = VIEWMODEL_REST
-	_viewmodel.rotation_degrees = Vector3(10.0, 12.0, -8.0)
+	_viewmodel.rotation_degrees = VIEWMODEL_REST_ROT
 	_viewmodel.visible = false
 
 
+## Shows the dagger only when you can use it.
 func _update_viewmodel() -> void:
 	if _viewmodel != null:
 		_viewmodel.visible = can_attack() and not is_hiding
 
 
+## The dagger swing animation.
 func _swing() -> void:
 	if _viewmodel == null:
 		return
 	if _swing_tween != null and _swing_tween.is_valid():
 		_swing_tween.kill()
 	_viewmodel.position = VIEWMODEL_REST
-	_viewmodel.rotation_degrees = Vector3(10.0, 12.0, -8.0)
+	_viewmodel.rotation_degrees = VIEWMODEL_REST_ROT
 	_swing_tween = create_tween()
-	# Wind up (pull back and up), stab forward and across, then return.
-	_swing_tween.tween_property(_viewmodel, "position", VIEWMODEL_REST + Vector3(0.06, 0.06, 0.1), 0.08)
+
+	# Step 1 (0.08 s): wind up, pulling back and up.
+	var windup_pos := VIEWMODEL_REST + Vector3(0.06, 0.06, 0.1)
+	_swing_tween.tween_property(_viewmodel, "position", windup_pos, 0.08)
 	_swing_tween.parallel().tween_property(_viewmodel, "rotation_degrees", Vector3(25.0, 25.0, -20.0), 0.08)
-	_swing_tween.tween_property(_viewmodel, "position", VIEWMODEL_REST + Vector3(-0.14, 0.04, -0.28), 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+	# Step 2 (0.1 s): stab forward and across.
+	var stab_pos := VIEWMODEL_REST + Vector3(-0.14, 0.04, -0.28)
+	var stab: PropertyTweener = _swing_tween.tween_property(_viewmodel, "position", stab_pos, 0.1)
+	stab.set_trans(Tween.TRANS_QUAD)
+	stab.set_ease(Tween.EASE_OUT)
 	_swing_tween.parallel().tween_property(_viewmodel, "rotation_degrees", Vector3(-10.0, -10.0, 15.0), 0.1)
-	_swing_tween.tween_property(_viewmodel, "position", VIEWMODEL_REST, 0.3).set_trans(Tween.TRANS_SINE)
-	_swing_tween.parallel().tween_property(_viewmodel, "rotation_degrees", Vector3(10.0, 12.0, -8.0), 0.3)
+
+	# Step 3 (0.3 s): back to rest.
+	var back: PropertyTweener = _swing_tween.tween_property(_viewmodel, "position", VIEWMODEL_REST, 0.3)
+	back.set_trans(Tween.TRANS_SINE)
+	_swing_tween.parallel().tween_property(_viewmodel, "rotation_degrees", VIEWMODEL_REST_ROT, 0.3)

@@ -26,6 +26,7 @@ var _fading := false
 var _trail: CPUParticles3D
 
 
+## Sets up the click sound, collision reporting and the trail.
 func _ready() -> void:
 	if click.stream == null:
 		click.stream = Sfx.stream("pebble")
@@ -38,24 +39,29 @@ func _ready() -> void:
 	add_child(_trail)
 
 
+## Every physics step: rolling clicks, the trail, and cleaning up when done.
 func _physics_process(delta: float) -> void:
 	_cooldown -= delta
 	_life -= delta
+
+	# Fell out of the level: remove it right away.
 	if global_position.y < KILL_Y:
 		queue_free()
 		return
 	if _fading:
 		return
+
 	var speed := linear_velocity.length()
-	_roll_timer -= delta
-	if speed > 0.35 and speed < 3.0 and get_contact_count() > 0 and _roll_timer <= 0.0:
-		_roll_timer = randf_range(0.1, 0.18)
-		click.pitch_scale = randf_range(1.4, 1.9)
-		click.volume_db = -24.0
-		click.play()
-	var want_trail := speed > TRAIL_MIN_SPEED
+	_play_roll_click(speed, delta)
+
+	# Only show the trail while it is flying fast.
+	var want_trail := false
+	if speed > TRAIL_MIN_SPEED:
+		want_trail = true
 	if _trail.emitting != want_trail:
 		_trail.emitting = want_trail
+
+	# Count how long it has been lying still.
 	if sleeping or speed < 0.1:
 		_rest += delta
 	else:
@@ -64,6 +70,22 @@ func _physics_process(delta: float) -> void:
 		_fade_out()
 
 
+## Soft, quick clicks while it rolls slowly along the floor.
+func _play_roll_click(speed: float, delta: float) -> void:
+	_roll_timer -= delta
+	if speed <= 0.35 or speed >= 3.0:
+		return
+	if get_contact_count() == 0:
+		return
+	if _roll_timer > 0.0:
+		return
+	_roll_timer = randf_range(0.1, 0.18)
+	click.pitch_scale = randf_range(1.4, 1.9)
+	click.volume_db = -24.0
+	click.play()
+
+
+## Hit something: click (louder for harder hits), and the first bounces ping.
 func _on_body_entered(_body: Node) -> void:
 	if _cooldown > 0.0:
 		return
@@ -73,7 +95,7 @@ func _on_body_entered(_body: Node) -> void:
 		click.pitch_scale = randf_range(0.75, 1.35)
 		click.volume_db = lerpf(-16.0, -2.0, hit)
 		click.play()
-	if _bounces < ECHO_BOUNCES and _cooldown > 0.0:
+	if _bounces < ECHO_BOUNCES:
 		_bounces += 1
 		Echo.emit_ping(global_position, PING_RADIUS, true, true)
 		Echo.pebble_lure.emit(global_position, throw_origin)
@@ -109,7 +131,8 @@ func _make_trail() -> CPUParticles3D:
 	p.scale_amount_curve = curve
 	var ramp := Gradient.new()
 	ramp.set_color(0, TRAIL_COLOR)
-	ramp.set_color(1, Color(TRAIL_COLOR.r, TRAIL_COLOR.g * 0.75, TRAIL_COLOR.b * 0.5, 0.0))
+	var end_color := Color(TRAIL_COLOR.r, TRAIL_COLOR.g * 0.75, TRAIL_COLOR.b * 0.5, 0.0)
+	ramp.set_color(1, end_color)
 	p.color_ramp = ramp
 	var speck := SphereMesh.new()
 	speck.radius = 0.022

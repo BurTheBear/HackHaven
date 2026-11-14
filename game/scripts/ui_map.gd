@@ -12,6 +12,11 @@ const MAX_SCALE := 30.0
 const MIN_SCALE := 2.0
 const MARGIN_M := 4.0
 
+## Kinds of ping marks on the map.
+const KIND_LOUD := 0
+const KIND_WHISPER := 1
+const KIND_PEBBLE := 2
+
 var player: Node3D
 var is_open := false
 
@@ -22,6 +27,7 @@ var _was_paused := false
 var _tween: Tween
 
 
+## Starts hidden; keeps running while the game is paused.
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -32,6 +38,7 @@ func _ready() -> void:
 		Game.state_changed.connect(_on_state)
 
 
+## Called by ui.gd: remembers the player and listens for pings.
 func setup(p: Node3D) -> void:
 	player = p
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -42,6 +49,7 @@ func setup(p: Node3D) -> void:
 		Game.state_changed.connect(_on_state)
 
 
+## Back on the title screen: wipe the map and close it.
 func _on_state(s: int) -> void:
 	if s == Game.State.TITLE:
 		_points.clear()
@@ -51,19 +59,30 @@ func _on_state(s: int) -> void:
 			_close(true)
 
 
+## Remembers where a ping happened. Pings near the player are their own
+## call (loud) or whisper; pings further away came from a pebble.
 func _on_ping(origin: Vector3, radius: float, loud: bool) -> void:
 	if player == null or Game.state != Game.State.PLAYING:
 		return
 	var flat := Vector2(origin.x, origin.z)
-	var pp := Vector2(player.global_position.x, player.global_position.z)
-	var kind := 2
-	if flat.distance_to(pp) <= PING_NEAR:
-		kind = 0 if loud else 1
+	var player_flat := _player_flat()
+	var kind := KIND_PEBBLE
+	if flat.distance_to(player_flat) <= PING_NEAR:
+		if loud:
+			kind = KIND_LOUD
+		else:
+			kind = KIND_WHISPER
 	_pings.append({"pos": flat, "r": radius, "kind": kind})
 	if _pings.size() > MAX_PINGS:
 		_pings.pop_front()
 
 
+## The player's position seen from above (x, z).
+func _player_flat() -> Vector2:
+	return Vector2(player.global_position.x, player.global_position.z)
+
+
+## Opens / closes on the map key and records the walked path.
 func _process(delta: float) -> void:
 	if player == null:
 		return
@@ -78,22 +97,41 @@ func _process(delta: float) -> void:
 		_timer += delta
 		if _timer >= SAMPLE_EVERY:
 			_timer = 0.0
-			var pp := Vector2(player.global_position.x, player.global_position.z)
-			if _points.is_empty() or _points[_points.size() - 1].distance_to(pp) >= MIN_MOVE:
-				_points.append(pp)
-				if _points.size() > MAX_POINTS:
-					_points.pop_front()
+			_record_point()
 	if visible:
 		queue_redraw()
 
 
+## Adds the player's position to the path if they moved far enough.
+func _record_point() -> void:
+	var here := _player_flat()
+	if not _points.is_empty():
+		var last: Vector2 = _points[_points.size() - 1]
+		if last.distance_to(here) < MIN_MOVE:
+			return
+	_points.append(here)
+	if _points.size() > MAX_POINTS:
+		_points.pop_front()
+
+
+## While open, swallow gameplay input (but let "map" and "pause" through).
 func _input(event: InputEvent) -> void:
 	if not is_open:
 		return
 	if event.is_action("map") or event.is_action("pause"):
 		return
-	if event is InputEventKey or event is InputEventMouseButton or event is InputEventJoypadButton \
-			or event is InputEventMouseMotion or event is InputEventJoypadMotion:
+	var block := false
+	if event is InputEventKey:
+		block = true
+	elif event is InputEventMouseButton:
+		block = true
+	elif event is InputEventJoypadButton:
+		block = true
+	elif event is InputEventMouseMotion:
+		block = true
+	elif event is InputEventJoypadMotion:
+		block = true
+	if block:
 		get_viewport().set_input_as_handled()
 
 
@@ -105,6 +143,7 @@ func _open() -> void:
 	_fade(1.0)
 
 
+## Closes the map. `instant` skips the fade.
 func _close(instant: bool) -> void:
 	is_open = false
 	get_tree().paused = _was_paused
@@ -117,6 +156,7 @@ func _close(instant: bool) -> void:
 		_fade(0.0)
 
 
+## Fades the map to alpha `to` (works while paused).
 func _fade(to: float) -> void:
 	if _tween != null:
 		_tween.kill()
@@ -124,22 +164,33 @@ func _fade(to: float) -> void:
 	_tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	_tween.tween_property(self, "modulate:a", to, 0.2)
 	if to <= 0.0:
-		_tween.tween_callback(func() -> void:
-			if not is_open:
-				visible = false)
+		_tween.tween_callback(_hide_if_closed)
+
+
+## Called after the fade out finishes.
+func _hide_if_closed() -> void:
+	if not is_open:
+		visible = false
 
 
 func _draw() -> void:
 	if player == null:
 		return
-	var font: Font = ThemeDB.fallback_font
-	var sz := size
-	draw_rect(Rect2(Vector2.ZERO, sz), Color(0, 0, 0, 0.88))
-	var pp := Vector2(player.global_position.x, player.global_position.z)
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.88))
+	var player_pos := _player_flat()
 	var chalks: Array[Node] = get_tree().get_nodes_in_group("chalk_mark")
-	# Extent around the player.
-	var hx := MARGIN_M
-	var hy := MARGIN_M
+	var scale_px := _map_scale(player_pos, chalks)
+	var centre := size * 0.5 + Vector2(0, 6)
+	_draw_pings(centre, player_pos, scale_px)
+	_draw_path(centre, player_pos, scale_px)
+	_draw_chalks(centre, player_pos, scale_px, chalks)
+	_draw_player_arrow(centre)
+	_draw_labels()
+
+
+## Pixels per metre, chosen so everything seen so far fits on screen.
+func _map_scale(player_pos: Vector2, chalks: Array[Node]) -> float:
+	# Collect every point that should fit.
 	var pts: Array[Vector2] = _points.duplicate()
 	for pg in _pings:
 		var pv: Vector2 = pg["pos"]
@@ -148,41 +199,59 @@ func _draw() -> void:
 		var c3 := c as Node3D
 		if c3 != null:
 			pts.append(Vector2(c3.global_position.x, c3.global_position.z))
+	# Half-width and half-height (metres) around the player.
+	var half_x := MARGIN_M
+	var half_y := MARGIN_M
 	for v in pts:
-		hx = maxf(hx, absf(v.x - pp.x) + MARGIN_M)
-		hy = maxf(hy, absf(v.y - pp.y) + MARGIN_M)
-	var sc := clampf(minf(sz.x * 0.42 / hx, (sz.y * 0.40) / hy), MIN_SCALE, MAX_SCALE)
-	var centre := sz * 0.5 + Vector2(0, 6)
+		half_x = maxf(half_x, absf(v.x - player_pos.x) + MARGIN_M)
+		half_y = maxf(half_y, absf(v.y - player_pos.y) + MARGIN_M)
+	var scale_x := size.x * 0.42 / half_x
+	var scale_y := size.y * 0.40 / half_y
+	var result := minf(scale_x, scale_y)
+	return clampf(result, MIN_SCALE, MAX_SCALE)
+
+
+## Ping marks: a ring plus an expanding ripple. Pebbles are gold.
+func _draw_pings(centre: Vector2, player_pos: Vector2, scale_px: float) -> void:
 	var t := Time.get_ticks_msec() / 1000.0
-	# Ping glyphs.
 	for pg in _pings:
 		var pv: Vector2 = pg["pos"]
 		var kind: int = pg["kind"]
-		var p := centre + (pv - pp) * sc
+		var p := centre + (pv - player_pos) * scale_px
 		var col := Style.CYAN
 		var rad := 9.0
-		if kind == 1:
+		if kind == KIND_WHISPER:
 			rad = 5.0
-		elif kind == 2:
+		elif kind == KIND_PEBBLE:
 			col = Style.GOLD
 			rad = 6.0
+		# Ripple phase 0..1, offset by position so marks don't pulse together.
 		var ph := fposmod(t * 0.5 + pv.x * 0.13 + pv.y * 0.07, 1.0)
 		draw_arc(p, rad * 0.5, 0.0, TAU, 24, Color(col, 0.35), 1.0, true)
 		draw_arc(p, rad * (0.5 + ph), 0.0, TAU, 28, Color(col, 0.28 * (1.0 - ph)), 1.5, true)
 		draw_circle(p, 1.5, Color(col, 0.6))
-	# Path.
-	if _points.size() > 1:
-		var line := PackedVector2Array()
-		for v in _points:
-			line.append(centre + (v - pp) * sc)
-		line.append(centre)
-		draw_polyline(line, Color(Style.CYAN, 0.75), 1.5, true)
-	# Chalk marks.
+
+
+## The walked path, ending at the player.
+func _draw_path(centre: Vector2, player_pos: Vector2, scale_px: float) -> void:
+	if _points.size() <= 1:
+		return
+	var line := PackedVector2Array()
+	for v in _points:
+		line.append(centre + (v - player_pos) * scale_px)
+	line.append(centre)
+	draw_polyline(line, Color(Style.CYAN, 0.75), 1.5, true)
+
+
+## Chalk marks as dots in their own colour, with their number.
+func _draw_chalks(centre: Vector2, player_pos: Vector2, scale_px: float, chalks: Array[Node]) -> void:
+	var font: Font = ThemeDB.fallback_font
 	for c in chalks:
 		var c3 := c as Node3D
 		if c3 == null:
 			continue
-		var cp := centre + (Vector2(c3.global_position.x, c3.global_position.z) - pp) * sc
+		var flat := Vector2(c3.global_position.x, c3.global_position.z)
+		var cp := centre + (flat - player_pos) * scale_px
 		var cc: Color = Style.GOLD
 		if c3.has_meta("color"):
 			var mc: Variant = c3.get_meta("color")
@@ -194,18 +263,25 @@ func _draw() -> void:
 		if c3.has_meta("number"):
 			var num: String = str(c3.get_meta("number"))
 			draw_string(font, cp + Vector2(8, 5), num, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, cc)
-	# Player arrow (yaw 0 faces -Z, i.e. up the map).
+
+
+## White arrow for the player (yaw 0 faces -Z, i.e. up the map).
+func _draw_player_arrow(centre: Vector2) -> void:
 	var yaw: float = player.rotation.y
 	var fwd := Vector2(-sin(yaw), -cos(yaw))
 	var side := Vector2(-fwd.y, fwd.x)
-	var arrow := PackedVector2Array([
-		centre + fwd * 11.0,
-		centre - fwd * 7.0 + side * 7.0,
-		centre - fwd * 3.0,
-		centre - fwd * 7.0 - side * 7.0,
-	])
+	var arrow := PackedVector2Array()
+	arrow.append(centre + fwd * 11.0)
+	arrow.append(centre - fwd * 7.0 + side * 7.0)
+	arrow.append(centre - fwd * 3.0)
+	arrow.append(centre - fwd * 7.0 - side * 7.0)
 	draw_colored_polygon(arrow, Color.WHITE)
-	# Text.
+
+
+## Title, north marker, legend and the close hint.
+func _draw_labels() -> void:
+	var font: Font = ThemeDB.fallback_font
+	var sz := size
 	draw_string(font, Vector2(0, 52), "EXPLORED", HORIZONTAL_ALIGNMENT_CENTER, sz.x, 26, Style.CYAN)
 	draw_string(font, Vector2(sz.x - 60, 36), "N", HORIZONTAL_ALIGNMENT_CENTER, 24, 18, Style.MUTED)
 	draw_line(Vector2(sz.x - 48, 46), Vector2(sz.x - 48, 70), Style.MUTED, 1.5)

@@ -21,6 +21,7 @@ var _icon_alpha := 0.0
 var _ready_to_click := false
 
 
+## Builds the black background and the centred text card.
 func _ready() -> void:
 	Style.full_rect(self)
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -53,10 +54,11 @@ func _ready() -> void:
 	visible = false
 
 
+## Shows the first boot card (phone notice, warning, or headphones).
 func start() -> void:
 	visible = true
 	_black.color.a = 1.0
-	if OS.has_feature("web_android") or OS.has_feature("web_ios") or (OS.has_feature("web") and DisplayServer.is_touchscreen_available() and not _has_mouse_hint()):
+	if _is_phone():
 		_show("mobile")
 	elif not Settings.seen_warning:
 		_show("warning")
@@ -64,11 +66,17 @@ func start() -> void:
 		_show("headphones")
 
 
-## Touch laptops still have a keyboard; only treat touch-only browsers as phones.
-func _has_mouse_hint() -> bool:
-	return not (OS.has_feature("web_android") or OS.has_feature("web_ios"))
+## True when running in a phone or tablet browser.
+## Touch laptops still have a keyboard, so a touch screen alone doesn't count.
+func _is_phone() -> bool:
+	if OS.has_feature("web_android"):
+		return true
+	if OS.has_feature("web_ios"):
+		return true
+	return false
 
 
+## Fills the card with the text for one stage and fades it in.
 func _show(stage: String) -> void:
 	_stage = stage
 	_stage_time = 0.0
@@ -100,6 +108,7 @@ func _show(stage: String) -> void:
 	queue_redraw()
 
 
+## Fades the current card out, then shows the next one.
 func _next() -> void:
 	var from := _stage
 	_stage = ""
@@ -108,10 +117,14 @@ func _next() -> void:
 	tw.tween_callback(_after.bind(from))
 
 
+## Picks which card comes after the one called `from`.
 func _after(from: String) -> void:
 	match from:
 		"mobile":
-			_show("warning" if not Settings.seen_warning else "headphones")
+			if Settings.seen_warning:
+				_show("headphones")
+			else:
+				_show("warning")
 		"warning":
 			Settings.seen_warning = true
 			Settings.save()
@@ -122,6 +135,7 @@ func _after(from: String) -> void:
 			pass
 
 
+## Per-frame card timing: when clicks are allowed, auto-advance, pulsing text.
 func _process(delta: float) -> void:
 	if not visible:
 		return
@@ -142,15 +156,18 @@ func _process(delta: float) -> void:
 			if Sfx.is_loaded:
 				_ready_to_click = true
 				_body.text = "Click to begin"
-				_body.add_theme_color_override("font_color", Color(1, 1, 1, 0.55 + 0.45 * sin(_stage_time * 2.4)))
+				var click_alpha := 0.55 + 0.45 * sin(_stage_time * 2.4)
+				_body.add_theme_color_override("font_color", Color(1, 1, 1, click_alpha))
 			else:
 				_body.text = "Listening..."
-				_body.add_theme_color_override("font_color", Color(0.6, 0.66, 0.7, 0.4 + 0.3 * sin(_stage_time * 4.0)))
+				var wait_alpha := 0.4 + 0.3 * sin(_stage_time * 4.0)
+				_body.add_theme_color_override("font_color", Color(0.6, 0.66, 0.7, wait_alpha))
 	if _stage != "headphones":
 		_icon_alpha = maxf(_icon_alpha - delta * 2.0, 0.0)
 	queue_redraw()
 
 
+## Any key, click, button or tap moves to the next card (once allowed).
 func _input(event: InputEvent) -> void:
 	if not visible or _stage == "":
 		return
@@ -182,11 +199,13 @@ func _input(event: InputEvent) -> void:
 		_next()
 
 
+## Lets clicks through to the menu and tells ui.gd the boot cards are done.
 func _emit_finished() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	finished.emit()
 
 
+## Draws the headphones icon on the headphones card.
 func _draw() -> void:
 	if _icon_alpha <= 0.0:
 		return

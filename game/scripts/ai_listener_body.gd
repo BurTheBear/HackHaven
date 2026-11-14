@@ -28,23 +28,50 @@ var _rest_rot := Vector3.ZERO
 func flash_hurt() -> void:
 	if _mat == null:
 		return
+	_start_flash()
+	_start_jolt()
+
+
+## The white-hot flash: goes from 1 down to 0 in 0.28 s.
+func _start_flash() -> void:
 	if _flash_tween:
 		_flash_tween.kill()
 	_flash_tween = create_tween()
-	_flash_tween.tween_method(_set_flash, 1.0, 0.0, 0.28).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	var target: Node3D = _model if _model != null else self
+	var fade: MethodTweener = _flash_tween.tween_method(_set_flash, 1.0, 0.0, 0.28)
+	fade.set_ease(Tween.EASE_OUT)
+	fade.set_trans(Tween.TRANS_QUAD)
+
+
+## The stagger: a quick push back and tip, then a springy return.
+func _start_jolt() -> void:
+	# Move the model if there is one, otherwise this whole node.
+	var target: Node3D = self
+	if _model != null:
+		target = _model
+
+	# If a jolt is still playing, put the body back where it rests first.
 	if _jolt_tween and _jolt_tween.is_valid():
 		_jolt_tween.kill()
 		target.position = _rest_pos
 		target.rotation = _rest_rot
 	_rest_pos = target.position
 	_rest_rot = target.rotation
+
 	var back := Vector3(0.0, 0.0, 0.12)
 	_jolt_tween = create_tween()
-	_jolt_tween.tween_property(target, "position", _rest_pos + back, 0.06).set_ease(Tween.EASE_OUT)
+
+	# Step 1 (0.06 s): pushed back and tipped.
+	var push: PropertyTweener = _jolt_tween.tween_property(target, "position", _rest_pos + back, 0.06)
+	push.set_ease(Tween.EASE_OUT)
 	_jolt_tween.parallel().tween_property(target, "rotation:x", _rest_rot.x - 0.18, 0.06)
-	_jolt_tween.tween_property(target, "position", _rest_pos, 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC)
-	_jolt_tween.parallel().tween_property(target, "rotation:x", _rest_rot.x, 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC)
+
+	# Step 2 (0.3 s): spring back to rest.
+	var return_move: PropertyTweener = _jolt_tween.tween_property(target, "position", _rest_pos, 0.3)
+	return_move.set_ease(Tween.EASE_OUT)
+	return_move.set_trans(Tween.TRANS_ELASTIC)
+	var return_tip: PropertyTweener = _jolt_tween.parallel().tween_property(target, "rotation:x", _rest_rot.x, 0.3)
+	return_tip.set_ease(Tween.EASE_OUT)
+	return_tip.set_trans(Tween.TRANS_ELASTIC)
 
 
 ## 0..1: darkens the Listener and dissolves it away.
@@ -53,6 +80,7 @@ func set_dying(t: float) -> void:
 		_mat.set_shader_parameter("dying", clampf(t, 0.0, 1.0))
 
 
+## Sets how white-hot the Listener looks (1 = full flash, 0 = none).
 func _set_flash(v: float) -> void:
 	_flash = v
 	if _mat != null:
@@ -87,10 +115,12 @@ static func build(root: Node3D, mat: Material) -> Node3D:
 	return head
 
 
+## Remembers the material so flash_hurt() and set_dying() can change it.
 func _attach(mat: Material) -> void:
 	_mat = mat as ShaderMaterial
 
 
+## Gives the material its skin texture (and normal map, if there is one).
 static func _set_textures(mat: Material, albedo: Texture2D, normal: Texture2D) -> void:
 	var sm := mat as ShaderMaterial
 	if sm == null:
@@ -100,6 +130,8 @@ static func _set_textures(mat: Material, albedo: Texture2D, normal: Texture2D) -
 		sm.set_shader_parameter("listener_normal", normal)
 
 
+## Loads the Listener model and sets it up. Returns the head pivot, or null
+## if the model can't be loaded.
 static func _build_model(root: Node3D, mat: Material) -> Node3D:
 	if not ResourceLoader.exists(MODEL_PATH):
 		return null
@@ -130,21 +162,28 @@ static func _build_model(root: Node3D, mat: Material) -> Node3D:
 		part.material_override = mat
 		part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		part.extra_cull_margin = 1.0
+	# Hook up the animations to a small driver that follows the Listener's state.
 	var player := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if player != null:
-		var driver := AnimDriver.new()
-		driver.name = "AnimDriver"
-		root.add_child(driver)
-		var host: Node = root.get_parent()
-		if host == null:
-			host = root
-		driver.setup(player, host)
+		_add_anim_driver(root, player)
 	# The model animates its own head; this pivot is only here for the callers.
 	var head := Node3D.new()
 	head.name = "Head"
 	root.add_child(head)
 	head.position = Vector3(0.0, 2.2, -0.3)
 	return head
+
+
+## Adds the node that picks the model's animation every frame.
+static func _add_anim_driver(root: Node3D, player: AnimationPlayer) -> void:
+	var driver := AnimDriver.new()
+	driver.name = "AnimDriver"
+	root.add_child(driver)
+	# The Listener is the body's parent; a phantom has none, so use the root.
+	var host: Node = root.get_parent()
+	if host == null:
+		host = root
+	driver.setup(player, host)
 
 
 ## A 1x1 dark flesh texture for bodies without the model's albedo.
@@ -154,6 +193,7 @@ static func _flat_texture() -> Texture2D:
 	return ImageTexture.create_from_image(img)
 
 
+## The fallback body, built from capsules and spheres. Returns the head pivot.
 static func _build_primitive(root: Node3D, mat: Material) -> Node3D:
 	_set_textures(mat, _flat_texture(), null)
 	var lean := deg_to_rad(-52.0)
@@ -178,11 +218,15 @@ static func _build_primitive(root: Node3D, mat: Material) -> Node3D:
 	# A ridge of vertebrae along the curved back.
 	for k in 6:
 		var u := float(k) / 5.0
-		var p := hips.lerp(chest, u) + back * (0.22 + 0.05 * sin(u * PI))
+		var along_spine := hips.lerp(chest, u)
+		var bulge := 0.22 + 0.05 * sin(u * PI)
+		var p := along_spine + back * bulge
 		_ball(root, p, 0.055, Vector3.ONE, mat)
 	# Wide, bony shoulders.
 	var shoulders := chest + back * 0.05
-	_limb(root, shoulders + Vector3(-0.34, -0.02, 0.0), shoulders + Vector3(0.34, -0.02, 0.0), 0.08, mat)
+	var left_shoulder := shoulders + Vector3(-0.34, -0.02, 0.0)
+	var right_shoulder := shoulders + Vector3(0.34, -0.02, 0.0)
+	_limb(root, left_shoulder, right_shoulder, 0.08, mat)
 
 	# Long neck reaching forward, and a small head pushed out in front.
 	var neck_end := chest + Vector3(0.0, 0.02, -0.3)
@@ -204,7 +248,9 @@ static func _build_primitive(root: Node3D, mat: Material) -> Node3D:
 		_limb(root, elbow, wrist, 0.045, mat)
 		for f in 3:
 			var spread := (float(f) - 1.0) * 0.07
-			var tip := wrist + Vector3(spread + 0.03 * side, -0.17, -0.06 + absf(spread) * 0.3)
+			var tip_x := spread + 0.03 * side
+			var tip_z := -0.06 + absf(spread) * 0.3
+			var tip := wrist + Vector3(tip_x, -0.17, tip_z)
 			_limb(root, wrist, tip, 0.016, mat)
 	return head
 
@@ -235,6 +281,7 @@ static func _ball(parent: Node3D, pos: Vector3, radius: float, squash: Vector3, 
 	return part
 
 
+## Adds one mesh piece under `parent` with the Listener material.
 static func _part(parent: Node3D, mesh: Mesh, mat: Material) -> MeshInstance3D:
 	var part := MeshInstance3D.new()
 	part.mesh = mesh

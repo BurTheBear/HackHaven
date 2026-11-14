@@ -115,8 +115,12 @@ var _seen := false
 var _attack_cd := 0.0
 var _stagger := 0.0
 var _flash := 0.0
+## Where it walks this physics step and how fast (set by the mode functions).
+var _move_dest := Vector3.ZERO
+var _move_speed := 0.0
 
 
+## Builds the body and sound players, and listens for sounds and game events.
 func _ready() -> void:
 	health = max_health
 	_home = global_position
@@ -160,6 +164,7 @@ func _ready() -> void:
 		Sfx.loaded.connect(_start_sounds, CONNECT_ONE_SHOT)
 
 
+## Makes a 3D sound player attached to the Listener.
 func _make_player(pos: Vector3, max_dist: float, unit: float) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
 	p.bus = &"Cave"
@@ -170,6 +175,7 @@ func _make_player(pos: Vector3, max_dist: float, unit: float) -> AudioStreamPlay
 	return p
 
 
+## Starts the breathing loop once the sounds exist.
 func _start_sounds() -> void:
 	if _sounds_ready:
 		return
@@ -181,17 +187,22 @@ func _start_sounds() -> void:
 	_steps.stream = Sfx.stream("drag_step")
 
 
+## True while it is alerted, investigating or chasing.
 func is_hunting() -> bool:
 	return mode == Mode.ALERT or mode == Mode.INVESTIGATE or mode == Mode.CHASE
 
 
+## A ping (or noise) happened somewhere: can we hear it?
 func _on_ping(origin: Vector3, max_radius: float, loud: bool) -> void:
-	if is_dead or not loud or _deaf > 0.0 or mode == Mode.CHASE:
+	if is_dead or not loud:
+		return
+	if _deaf > 0.0 or mode == Mode.CHASE:
 		return
 	var d := global_position.distance_to(origin)
 	if asleep and d > wake_radius:
 		return
-	if d > minf(max_radius, hearing_radius) * _hearing_mult():
+	var reach := minf(max_radius, hearing_radius) * _hearing_mult()
+	if d > reach:
 		return
 	# React when the sound actually reaches us, not instantly.
 	_heard_origin = origin
@@ -206,10 +217,12 @@ func _on_pebble_lure(origin: Vector3, thrower: Vector3) -> void:
 		_lure_thrower = thrower
 
 
+## Footsteps and other noises are heard just like pings.
 func _on_noise(origin: Vector3, radius: float) -> void:
 	_on_ping(origin, radius, true)
 
 
+## The sound has reached us: turn toward it and start hunting.
 func _hear() -> void:
 	# Adaptive: after a few fooled hunts, Listeners increasingly ignore the pebble
 	# and go to where it was thrown from (where you stand).
@@ -245,8 +258,10 @@ func _hear() -> void:
 	_alert = pause
 	if not hear_lines.is_empty():
 		voice.stream = hear_lines.pick_random()
+	elif was_asleep:
+		voice.stream = Sfx.stream("shriek")
 	else:
-		voice.stream = Sfx.stream("shriek" if was_asleep else "hiss")
+		voice.stream = Sfx.stream("hiss")
 	voice.pitch_scale = randf_range(0.8, 1.0)
 	voice.volume_db = 0.0
 	voice.play()
@@ -298,6 +313,7 @@ func hush(seconds: float, fade_in: float = 2.5, boost_db: float = 0.0) -> void:
 	_hush_boost = boost_db
 
 
+## The player was caught: back off and give them time to respawn.
 func _on_player_caught() -> void:
 	if mode == Mode.CHASE:
 		Game.level_event.emit("chase_end")
@@ -309,7 +325,8 @@ func _on_player_caught() -> void:
 	_deaf = 3.0
 	_catch_grace = 3.5  # respawn grace
 	_gave_chase = false
-	get_tree().create_timer(1.0).timeout.connect(_clear_checkpoint)
+	var timer := get_tree().create_timer(1.0)
+	timer.timeout.connect(_clear_checkpoint)
 
 
 ## Respawn grace: don't be waiting at the checkpoint when the player comes back.
@@ -321,6 +338,7 @@ func _clear_checkpoint() -> void:
 		velocity = Vector3.ZERO
 
 
+## The game is won: go quiet and stop hunting for good.
 func _on_game_won() -> void:
 	if mode == Mode.CHASE:
 		Game.level_event.emit("chase_end")
@@ -353,81 +371,137 @@ func _physics_process(delta: float) -> void:
 			_hear()
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
-	var dest := global_position
-	var speed := 0.0
+
+	# By default it stands still. Each mode below can change this.
+	_move_dest = global_position
+	_move_speed = 0.0
+	# Difficulty and this Listener's own small speed difference.
 	var pace := _speed_mult() * _jitter
 	match mode:
 		Mode.PATROL:
-			if not asleep:
-				if patrol_points.size() > 0:
-					dest = _home + patrol_points[_wp % patrol_points.size()]
-					if _flat_dist(dest) < 0.6:
-						_wp = (_wp + 1) % patrol_points.size()
-				else:
-					dest = _home + patrol_offset if _to_far else _home
-					if _flat_dist(dest) < 0.5:
-						_to_far = not _to_far
-				speed = patrol_speed * pace
-				_listen_timer -= delta
-				if _listen_timer <= 0.0 and (patrol_offset != Vector3.ZERO or patrol_points.size() > 0):
-					mode = Mode.LISTEN
-					_search = randf_range(1.2, 2.6)
+			_do_patrol(delta, pace)
 		Mode.LISTEN:
-			# Stops dead; its head sweeps and it sniffs. Hold your breath.
-			_search -= delta
-			if _search <= 0.0:
-				mode = Mode.PATROL
-				_listen_timer = randf_range(5.0, 12.0)
+			_do_listen(delta)
 		Mode.ALERT:
-			_turn_toward(_target, delta, 4.0)
-			_alert -= delta
-			if _alert <= 0.0:
-				mode = Mode.INVESTIGATE
+			_do_alert(delta)
 		Mode.INVESTIGATE:
-			_update_pursuit(delta)
-			dest = _target
-			if _snap_pause <= 0.0:
-				speed = investigate_speed * pace
-			if _pursuing:
-				# Closing in: stop pushing once it's in reach.
-				if _flat_dist(dest) < ATTACK_RANGE * 0.8:
-					speed = 0.0
-					_turn_toward(dest, delta, 8.0)
-			elif _flat_dist(dest) < 0.8:
-				_begin_search(search_time * randf_range(0.75, 1.5))
+			_do_investigate(delta, pace)
 		Mode.WANDER:
-			dest = _target
-			speed = patrol_speed * 1.3 * pace
-			var p := _get_player()
-			# A hint never walks it into the player's face unseen.
-			if _flat_dist(dest) < 1.0 or (p != null and _flat_dist(p.global_position) < HINT_STOP_DISTANCE):
-				_begin_search(2.5)
+			_do_wander(pace)
 		Mode.CHASE:
-			var cp := _get_player()
-			if cp == null:
-				mode = Mode.PATROL
-			else:
-				dest = cp.global_position
-				speed = chase_speed * pace
-				if cp.call("is_hidden") == true and _flat_dist(cp.global_position) < 8.0:
-					stop_chase(true)
-				elif _flat_dist(cp.global_position) > 45.0:
-					stop_chase(false)
+			_do_chase(pace)
 		Mode.SEARCH:
-			_search -= delta
-			rotate_y(delta * 0.7)
-			if _gave_chase and _can_sense_player():
-				_start_pursuit()
-			elif _search <= 0.0:
-				_end_search()
-	_move(dest, speed, delta)
-	_check_stuck(delta, speed)
+			_do_search(delta)
+	_move(_move_dest, _move_speed, delta)
+	_check_stuck(delta, _move_speed)
 	_update_breath(delta)
 	_check_catch()
 	_track_hidden_player(delta)
 	_track_near_miss(delta)
 
 
+# ---------------------------------------------------------------- Modes
+
+## PATROL: walk the route (or back and forth), stopping now and then to listen.
+func _do_patrol(delta: float, pace: float) -> void:
+	if asleep:
+		return
+	var has_route := patrol_points.size() > 0
+	if has_route:
+		# Walk the patrol points in a loop.
+		var index := _wp % patrol_points.size()
+		_move_dest = _home + patrol_points[index]
+		if _flat_dist(_move_dest) < 0.6:
+			_wp = (_wp + 1) % patrol_points.size()
+	else:
+		# Walk back and forth between home and home + patrol_offset.
+		if _to_far:
+			_move_dest = _home + patrol_offset
+		else:
+			_move_dest = _home
+		if _flat_dist(_move_dest) < 0.5:
+			_to_far = not _to_far
+	_move_speed = patrol_speed * pace
+
+	# Time to stop and listen? (Only Listeners that actually patrol.)
+	_listen_timer -= delta
+	var does_patrol := patrol_offset != Vector3.ZERO or has_route
+	if _listen_timer <= 0.0 and does_patrol:
+		mode = Mode.LISTEN
+		_search = randf_range(1.2, 2.6)
+
+
+## LISTEN: stops dead; its head sweeps and it sniffs. Hold your breath.
+func _do_listen(delta: float) -> void:
+	_search -= delta
+	if _search <= 0.0:
+		mode = Mode.PATROL
+		_listen_timer = randf_range(5.0, 12.0)
+
+
+## ALERT: turn toward the sound for a moment, then go investigate.
+func _do_alert(delta: float) -> void:
+	_turn_toward(_target, delta, 4.0)
+	_alert -= delta
+	if _alert <= 0.0:
+		mode = Mode.INVESTIGATE
+
+
+## INVESTIGATE: walk to the sound (or follow the player if it can sense them).
+func _do_investigate(delta: float, pace: float) -> void:
+	_update_pursuit(delta)
+	_move_dest = _target
+	if _snap_pause <= 0.0:
+		_move_speed = investigate_speed * pace
+	if _pursuing:
+		# Closing in: stop pushing once it's in reach.
+		if _flat_dist(_move_dest) < ATTACK_RANGE * 0.8:
+			_move_speed = 0.0
+			_turn_toward(_move_dest, delta, 8.0)
+	elif _flat_dist(_move_dest) < 0.8:
+		# Reached the spot: look around.
+		_begin_search(search_time * randf_range(0.75, 1.5))
+
+
+## WANDER: a director hint, walking toward the player's rough area.
+func _do_wander(pace: float) -> void:
+	_move_dest = _target
+	_move_speed = patrol_speed * 1.3 * pace
+	if _flat_dist(_move_dest) < 1.0:
+		_begin_search(2.5)
+		return
+	# A hint never walks it into the player's face unseen.
+	var p := _get_player()
+	if p != null and _flat_dist(p.global_position) < HINT_STOP_DISTANCE:
+		_begin_search(2.5)
+
+
+## CHASE: sprint straight at the player until they hide or get far away.
+func _do_chase(pace: float) -> void:
+	var p := _get_player()
+	if p == null:
+		mode = Mode.PATROL
+		return
+	_move_dest = p.global_position
+	_move_speed = chase_speed * pace
+	var dist := _flat_dist(p.global_position)
+	if p.call("is_hidden") == true and dist < 8.0:
+		stop_chase(true)
+	elif dist > 45.0:
+		stop_chase(false)
+
+
+## SEARCH: turn slowly on the spot; pounce if it senses the player, else give up.
+func _do_search(delta: float) -> void:
+	_search -= delta
+	rotate_y(delta * 0.7)
+	if _gave_chase and _can_sense_player():
+		_start_pursuit()
+	elif _search <= 0.0:
+		_end_search()
+
+
+## Every frame: the pulsing outline color, and the head animation.
 func _process(delta: float) -> void:
 	# Outline rhythm (readable without color): a double pulse, slow while
 	# calm, quick while hunting, very slow while asleep.
@@ -439,18 +513,25 @@ func _process(delta: float) -> void:
 	elif mode == Mode.SEARCH or mode == Mode.LISTEN or mode == Mode.WANDER:
 		rate = 1.2
 	_pulse = fmod(_pulse + delta * rate, 1.0)
-	var beat := minf(exp(-_pulse * 10.0) + 0.6 * exp(-absf(_pulse - 0.25) * 18.0), 1.0)
+
+	# A heartbeat shape: one strong beat at the start, a smaller one just after.
+	var first_beat := exp(-_pulse * 10.0)
+	var second_beat := 0.6 * exp(-absf(_pulse - 0.25) * 18.0)
+	var beat := minf(first_beat + second_beat, 1.0)
 	if is_dead:
 		beat = 0.0
 	var col := RED * (0.6 + 0.7 * beat)
 	if _flash > 0.0:
-		col = col.lerp(Color(1.6, 1.6, 1.6), clampf(_flash, 0.0, 1.0))  # hurt flash
+		# Hurt flash: blend toward white.
+		var flash_amount := clampf(_flash, 0.0, 1.0)
+		col = col.lerp(Color(1.6, 1.6, 1.6), flash_amount)
 	_material.set_shader_parameter("echo_color", col)
 	if is_dead:
 		return
 	_animate_head(delta)
 
 
+## Stop and look around for `seconds`.
 func _begin_search(seconds: float) -> void:
 	_pursuing = false
 	if is_hunting() and mode != Mode.CHASE:
@@ -460,6 +541,7 @@ func _begin_search(seconds: float) -> void:
 	_sniff_timer = randf_range(0.3, 0.8)
 
 
+## Searching is over: go back to patrolling.
 func _end_search() -> void:
 	mode = Mode.PATROL
 	_pursuing = false
@@ -475,6 +557,7 @@ func _end_search() -> void:
 	_caption("[a low exhale: it gave up]", 2.0, 22.0)
 
 
+## Walks toward `dest` at `speed` and plays a footstep every stride.
 func _move(dest: Vector3, speed: float, delta: float) -> void:
 	var goal := dest
 	if speed > 0.0:
@@ -490,8 +573,11 @@ func _move(dest: Vector3, speed: float, delta: float) -> void:
 	move_and_slide()
 	# Heavy dragging footsteps, one per stride, synced to how far it moved.
 	var moved := get_real_velocity()
-	_stride += Vector2(moved.x, moved.z).length() * delta
-	var stride_len: float = 1.2 if is_hunting() else 0.9
+	var flat_speed := Vector2(moved.x, moved.z).length()
+	_stride += flat_speed * delta
+	var stride_len := 0.9
+	if is_hunting():
+		stride_len = 1.2
 	if _stride >= stride_len:
 		_stride = 0.0
 		_footstep()
@@ -508,6 +594,7 @@ func _path_point(dest: Vector3) -> Vector3:
 	return _agent.get_next_path_position()
 
 
+## True once the navmesh is baked. Looks for the AiNav node about once a second.
 func _nav_ready() -> bool:
 	if _nav == null or not is_instance_valid(_nav):
 		_nav = null
@@ -539,16 +626,27 @@ func _check_stuck(delta: float, speed: float) -> void:
 		_stuck = 0.0
 
 
+## One heavy dragging footstep (heavier while hunting).
 func _footstep() -> void:
 	if _steps.stream == null or _hush_gain < 0.05:
 		return
-	var hunting := is_hunting()
-	_steps.pitch_scale = randf_range(0.85, 1.05) * (1.12 if hunting else 1.0)
-	_steps.volume_db = (-3.0 if hunting else -7.0) + linear_to_db(maxf(_hush_gain, 0.001))
+	var pitch := randf_range(0.85, 1.05)
+	var volume := -7.0
+	if is_hunting():
+		pitch = pitch * 1.12
+		volume = -3.0
+	_steps.pitch_scale = pitch
+	_steps.volume_db = volume + _hush_db()
 	_steps.play()
 	_caption("[heavy dragging footsteps]", 6.0, 14.0)
 
 
+## The hush as a volume change in decibels (0 = normal, very low = silent).
+func _hush_db() -> float:
+	return linear_to_db(maxf(_hush_gain, 0.001))
+
+
+## Breathing gets louder and faster as it hunts, slower while asleep.
 func _update_breath(delta: float) -> void:
 	# Hush (the Hall's sudden silence): fade out fast, then back in slowly.
 	if _hush > 0.0:
@@ -573,7 +671,7 @@ func _update_breath(delta: float) -> void:
 		want_db = -3.5
 		want_pitch = _breath_pitch * 1.15
 	_breath_db = lerpf(_breath_db, want_db, minf(delta * 3.0, 1.0))
-	breath.volume_db = _breath_db + linear_to_db(maxf(_hush_gain, 0.001)) + _hush_boost
+	breath.volume_db = _breath_db + _hush_db() + _hush_boost
 	breath.pitch_scale = lerpf(breath.pitch_scale, want_pitch, minf(delta * pitch_rate, 1.0))
 	if not asleep and _hush_gain > 0.5 and _sounds_ready:
 		_caption("[heavy breathing nearby]", 10.0, 9.0)
@@ -585,7 +683,8 @@ func _sleeper_unease(delta: float) -> float:
 	var p := _get_player()
 	var uneven := 0.0
 	if p != null:
-		uneven = clampf((6.0 - global_position.distance_to(p.global_position)) / 4.0, 0.0, 1.0)
+		var dist := global_position.distance_to(p.global_position)
+		uneven = clampf((6.0 - dist) / 4.0, 0.0, 1.0)
 	if _hold_breath > 0.0:
 		_hold_breath -= delta
 		if _hold_breath <= 0.0:
@@ -602,6 +701,8 @@ func _sleeper_unease(delta: float) -> float:
 	return uneven
 
 
+## Turns the head: toward the sound while hunting, sweeping while searching,
+## and the odd sudden twitch otherwise.
 func _animate_head(delta: float) -> void:
 	if _head == null:
 		return
@@ -628,10 +729,12 @@ func _animate_head(delta: float) -> void:
 				if _twitch <= 0.0:
 					_twitch = randf_range(2.0, 5.0)
 					_head.rotation.y = randf_range(-0.6, 0.6)  # a sudden jerk of the head
-	_head.rotation.y = lerp_angle(_head.rotation.y, want, minf(rate * delta, 1.0))
-	_head.rotation.x = lerpf(_head.rotation.x, -tilt, minf(rate * delta, 1.0))
+	var blend := minf(rate * delta, 1.0)
+	_head.rotation.y = lerp_angle(_head.rotation.y, want, blend)
+	_head.rotation.x = lerpf(_head.rotation.x, -tilt, blend)
 
 
+## A sniffing sound (if its mouth isn't already busy).
 func _sniff() -> void:
 	if _mouth.playing or _hush_gain < 0.3:
 		return
@@ -642,6 +745,7 @@ func _sniff() -> void:
 	_caption("[sniffing]", 5.0, 12.0)
 
 
+## Instantly turns the head toward world point p.
 func _snap_head(p: Vector3) -> void:
 	if _head:
 		_head.rotation.y = _local_yaw(p)
@@ -649,12 +753,14 @@ func _snap_head(p: Vector3) -> void:
 
 ## Head yaw (relative to the body) that faces world point p, within the neck's reach.
 func _local_yaw(p: Vector3) -> float:
-	var local := global_basis.inverse() * (p - global_position)
+	var offset := p - global_position
+	var local := global_basis.inverse() * offset
 	if Vector2(local.x, local.z).length() < 0.1:
 		return 0.0
 	return clampf(atan2(-local.x, -local.z), -1.3, 1.3)
 
 
+## Turns the whole body toward point p, `rate` sets how fast.
 func _turn_toward(p: Vector3, delta: float, rate: float) -> void:
 	var to := p - global_position
 	to.y = 0.0
@@ -664,10 +770,12 @@ func _turn_toward(p: Vector3, delta: float, rate: float) -> void:
 	global_rotation.y = lerp_angle(global_rotation.y, want, minf(rate * delta, 1.0))
 
 
+## Distance to p, ignoring height.
 func _flat_dist(p: Vector3) -> float:
 	return Vector2(p.x - global_position.x, p.z - global_position.z).length()
 
 
+## The player node (looked up again if it was freed).
 func _get_player() -> Node3D:
 	if _player == null or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player") as Node3D
@@ -681,6 +789,7 @@ func _caption(text: String, gap: float, max_dist: float) -> void:
 		Sfx.caption(text, global_position, gap)
 
 
+## Difficulty: how fast Listeners move.
 func _speed_mult() -> float:
 	if Settings.assist_mode:
 		return 0.8
@@ -689,10 +798,14 @@ func _speed_mult() -> float:
 	return 1.0
 
 
+## Difficulty: how far Listeners hear.
 func _hearing_mult() -> float:
-	return 0.75 if Settings.assist_mode else 1.0
+	if Settings.assist_mode:
+		return 0.75
+	return 1.0
 
 
+## Difficulty: how long Listeners pause before hunting.
 func _alert_mult() -> float:
 	if Settings.assist_mode:
 		return 1.6
@@ -701,6 +814,7 @@ func _alert_mult() -> float:
 	return 1.0
 
 
+## Is the player within reach? Catch them (or attack them in damage mode).
 func _check_catch() -> void:
 	if Game.state != Game.State.PLAYING or _catch_grace > 0.0:
 		return
@@ -712,12 +826,16 @@ func _check_catch() -> void:
 	if Game.damage_enabled():
 		_try_attack(p)
 		return
-	var reach: float = catch_distance * (0.8 if Settings.assist_mode else 1.0) + 0.4
-	if _flat_dist(p.global_position) >= reach or absf(p.global_position.y - global_position.y) >= 2.0:
+	var reach := catch_distance
+	if Settings.assist_mode:
+		reach = catch_distance * 0.8
+	reach += 0.4
+	if _flat_dist(p.global_position) >= reach:
+		return
+	if absf(p.global_position.y - global_position.y) >= 2.0:
 		return
 	# Fair catches only: it can't reach you through rock.
-	var query := PhysicsRayQueryParameters3D.create(global_position + Vector3.UP * 1.2, p.global_position + Vector3.UP * 1.0, 1)
-	if not get_world_3d().direct_space_state.intersect_ray(query).is_empty():
+	if not _clear_line(p):
 		return
 	if not Settings.skip_jumpscare:
 		voice.stream = Sfx.stream("hiss")
@@ -729,6 +847,7 @@ func _check_catch() -> void:
 
 # ---------------------------------------------------------------- Chase, hiding, near misses
 
+## The scripted chase starts or ends.
 func _on_level_event(event_name: String) -> void:
 	if event_name == "chase" and is_in_group("chase_listener"):
 		start_chase()
@@ -764,6 +883,7 @@ func start_chase() -> void:
 	Game.level_event.emit("chase_start")
 
 
+## Ends the chase (and searches the area if `search` is true).
 func stop_chase(search: bool) -> void:
 	if mode != Mode.CHASE:
 		return
@@ -788,9 +908,17 @@ func _track_hidden_player(delta: float) -> void:
 	var p := _get_player()
 	if p == null or asleep or Game.state != Game.State.PLAYING:
 		return
-	var searching := mode == Mode.SEARCH or mode == Mode.INVESTIGATE or mode == Mode.ALERT or mode == Mode.LISTEN
-	if p.call("is_hidden") == true and searching and _flat_dist(p.global_position) < 3.0:
-		var rate := 0.5 if p.get("holding_breath") == true else 1.0
+	var searching := false
+	if mode == Mode.SEARCH or mode == Mode.INVESTIGATE:
+		searching = true
+	if mode == Mode.ALERT or mode == Mode.LISTEN:
+		searching = true
+	var hidden_close_by: bool = p.call("is_hidden") == true and _flat_dist(p.global_position) < 3.0
+	if hidden_close_by and searching:
+		# Holding your breath makes it take twice as long.
+		var rate := 1.0
+		if p.get("holding_breath") == true:
+			rate = 0.5
 		_sniff_hide += delta * rate
 		if _sniff_hide >= HIDE_SNIFF_TIME:
 			_sniff_hide = 0.0
@@ -814,9 +942,10 @@ func _track_near_miss(delta: float) -> void:
 		return
 	var d := _flat_dist(p.global_position)
 	var same_level := absf(p.global_position.y - global_position.y) < 2.0
+	var walked_away := d > NEAR_MISS_DIST + 1.5 or not same_level
 	if d < NEAR_MISS_DIST and same_level and p.call("is_quiet") == true:
 		_near_pass = true
-	elif _near_pass and (d > NEAR_MISS_DIST + 1.5 or not same_level):
+	elif _near_pass and walked_away:
 		_near_pass = false
 		if _near_cd <= 0.0:
 			_near_cd = 20.0
@@ -830,23 +959,34 @@ func _track_near_miss(delta: float) -> void:
 ## not hidden. Quiet players (sneaking, still, holding breath) only up close.
 func _can_sense_player() -> bool:
 	var p := _get_player()
-	if p == null or Game.state != Game.State.PLAYING or p.call("is_hidden") == true:
+	if p == null or Game.state != Game.State.PLAYING:
 		return false
-	var range_m := SIGHT_RANGE_QUIET if p.call("is_quiet") == true else SIGHT_RANGE
+	if p.call("is_hidden") == true:
+		return false
+	var range_m := SIGHT_RANGE
+	if p.call("is_quiet") == true:
+		range_m = SIGHT_RANGE_QUIET
 	if Settings.assist_mode:
 		range_m *= 0.8
 	elif Settings.hard_mode:
 		range_m *= 1.15
-	if _flat_dist(p.global_position) > range_m or absf(p.global_position.y - global_position.y) > 2.5:
+	if _flat_dist(p.global_position) > range_m:
+		return false
+	if absf(p.global_position.y - global_position.y) > 2.5:
 		return false
 	return _clear_line(p)
 
 
+## True if no rock is between its head and the player's chest.
 func _clear_line(p: Node3D) -> bool:
-	var query := PhysicsRayQueryParameters3D.create(global_position + Vector3.UP * 1.2, p.global_position + Vector3.UP * 1.0, 1)
-	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+	var from := global_position + Vector3.UP * 1.2
+	var to := p.global_position + Vector3.UP * 1.0
+	var query := PhysicsRayQueryParameters3D.create(from, to, 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return hit.is_empty()
 
 
+## Starts following the player's live position.
 func _start_pursuit() -> void:
 	var p := _get_player()
 	if p == null:
@@ -890,7 +1030,9 @@ func _update_pursuit(delta: float) -> void:
 func _try_attack(p: Node3D) -> void:
 	if _attack_cd > 0.0 or asleep:
 		return
-	if _flat_dist(p.global_position) > ATTACK_RANGE or absf(p.global_position.y - global_position.y) >= 2.0:
+	if _flat_dist(p.global_position) > ATTACK_RANGE:
+		return
+	if absf(p.global_position.y - global_position.y) >= 2.0:
 		return
 	if not _clear_line(p):
 		return
@@ -928,6 +1070,7 @@ func take_damage(amount: int, from: Vector3 = Vector3.ZERO) -> void:
 		_start_pursuit()
 
 
+## Killed: stop everything, tell the game, and collapse into the floor.
 func die() -> void:
 	if is_dead:
 		return
@@ -954,10 +1097,26 @@ func die() -> void:
 	# Collapse: the body freezes, pitches over and sinks into the floor.
 	var body := get_node_or_null("Body") as Node3D
 	if body != null:
-		body.process_mode = Node.PROCESS_MODE_DISABLED
-		var tw := create_tween().set_parallel(true)
-		tw.tween_property(body, "rotation:x", deg_to_rad(-85.0), 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_property(body, "position:y", -0.3, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_property(body, "scale", Vector3(1.0, 0.6, 1.0), 0.9)
-		tw.chain().tween_property(body, "position:y", -1.4, 6.0).set_delay(3.0)
+		_collapse(body)
 	set_physics_process(false)
+
+
+## The death animation: the body freezes, pitches over and sinks into the floor.
+func _collapse(body: Node3D) -> void:
+	body.process_mode = Node.PROCESS_MODE_DISABLED
+	var tw := create_tween()
+	tw.set_parallel(true)
+
+	# These three play at the same time.
+	var fall_over: PropertyTweener = tw.tween_property(body, "rotation:x", deg_to_rad(-85.0), 0.7)
+	fall_over.set_trans(Tween.TRANS_QUAD)
+	fall_over.set_ease(Tween.EASE_IN)
+	var drop: PropertyTweener = tw.tween_property(body, "position:y", -0.3, 0.9)
+	drop.set_trans(Tween.TRANS_QUAD)
+	drop.set_ease(Tween.EASE_IN)
+	tw.tween_property(body, "scale", Vector3(1.0, 0.6, 1.0), 0.9)
+
+	# Then, after 3 more seconds, it slowly sinks out of sight.
+	tw.chain()
+	var sink: PropertyTweener = tw.tween_property(body, "position:y", -1.4, 6.0)
+	sink.set_delay(3.0)

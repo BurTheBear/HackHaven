@@ -85,6 +85,7 @@ const KEYS := [
 var _defaults := {}
 
 
+## Remembers the default values, loads the saved ones and applies them.
 func _ready() -> void:
 	for key in KEYS:
 		_defaults[key] = get(key)
@@ -95,17 +96,21 @@ func _ready() -> void:
 		tree.connect("scene_changed", apply_scene)
 
 
+## Reads user://settings.cfg (keeps defaults for anything missing).
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) != OK:
 		return
 	for key in KEYS:
-		set(key, cfg.get_value("settings", key, get(key)))
+		var current_value: Variant = get(key)
+		var saved_value: Variant = cfg.get_value("settings", key, current_value)
+		set(key, saved_value)
 	# Old saves: only reduce_shake existed.
 	if not cfg.has_section_key("settings", "camera_shake") and reduce_shake:
 		camera_shake = 0.3
 
 
+## Writes every setting to disk, then applies them.
 func save() -> void:
 	var cfg := ConfigFile.new()
 	for key in KEYS:
@@ -117,7 +122,9 @@ func save() -> void:
 ## Restores every option except seen_warning to its default (not saved).
 func reset_to_defaults() -> void:
 	for key in KEYS:
-		if key != "seen_warning" and _defaults.has(key):
+		if key == "seen_warning":
+			continue
+		if _defaults.has(key):
 			set(key, _defaults[key])
 	apply()
 
@@ -125,8 +132,8 @@ func reset_to_defaults() -> void:
 ## Difficulty preset: sets assist_mode / hard_mode.
 func set_difficulty(index: int) -> void:
 	difficulty = clampi(index, 0, 2)
-	assist_mode = difficulty == 0
-	hard_mode = difficulty == 2
+	assist_mode = (difficulty == 0)
+	hard_mode = (difficulty == 2)
 
 
 ## Camera shake multiplier (0 – 1) for shake code.
@@ -136,52 +143,82 @@ func shake_scale() -> float:
 
 ## Controller rumble, respecting the vibration setting.
 func vibrate(weak: float, strong: float, seconds: float, device: int = 0) -> void:
-	if vibration:
-		Input.start_joy_vibration(device, clampf(weak, 0.0, 1.0), clampf(strong, 0.0, 1.0), seconds)
+	if not vibration:
+		return
+	var weak_strength: float = clampf(weak, 0.0, 1.0)
+	var strong_strength: float = clampf(strong, 0.0, 1.0)
+	Input.start_joy_vibration(device, weak_strength, strong_strength, seconds)
 
 
 ## Pushes volumes, window / video options to the engine and tells everyone else.
 func apply() -> void:
-	reduce_shake = camera_shake <= 0.4
-	difficulty = 2 if hard_mode else (0 if assist_mode else 1)
+	reduce_shake = (camera_shake <= 0.4)
+	# Keep the difficulty number in sync with the two mode flags.
+	if hard_mode:
+		difficulty = 2
+	elif assist_mode:
+		difficulty = 0
+	else:
+		difficulty = 1
 	_set_bus("Master", volume_master)
 	_set_bus("Cave", volume_sfx)
 	_set_bus("Ambience", volume_ambience)
 	_set_bus("Voice", volume_voice)
-	if OS.get_name() != "Web" and DisplayServer.get_name() != "headless":
-		var want_full := DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED
-		if DisplayServer.window_get_mode() != want_full:
-			DisplayServer.window_set_mode(want_full)
-		var want_vsync := DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED
-		if DisplayServer.window_get_vsync_mode() != want_vsync:
-			DisplayServer.window_set_vsync_mode(want_vsync)
-	Engine.max_fps = int(FPS_LIMITS[clampi(fps_limit, 0, FPS_LIMITS.size() - 1)])
+	_apply_window()
+	var last_fps_index: int = FPS_LIMITS.size() - 1
+	var fps_index: int = clampi(fps_limit, 0, last_fps_index)
+	Engine.max_fps = int(FPS_LIMITS[fps_index])
 	apply_scene()
 	changed.emit()
+
+
+## Fullscreen and v-sync (not on the web or in headless runs).
+func _apply_window() -> void:
+	if OS.get_name() == "Web":
+		return
+	if DisplayServer.get_name() == "headless":
+		return
+	var want_mode: DisplayServer.WindowMode = DisplayServer.WINDOW_MODE_WINDOWED
+	if fullscreen:
+		want_mode = DisplayServer.WINDOW_MODE_FULLSCREEN
+	if DisplayServer.window_get_mode() != want_mode:
+		DisplayServer.window_set_mode(want_mode)
+	var want_vsync: DisplayServer.VSyncMode = DisplayServer.VSYNC_DISABLED
+	if vsync:
+		want_vsync = DisplayServer.VSYNC_ENABLED
+	if DisplayServer.window_get_vsync_mode() != want_vsync:
+		DisplayServer.window_set_vsync_mode(want_vsync)
 
 
 ## Viewport render scale and brightness on the current scene's WorldEnvironment.
 func apply_scene(_scene: Variant = null) -> void:
 	if not is_inside_tree():
 		return
-	var vp := get_viewport()
-	if vp != null:
-		vp.scaling_3d_scale = clampf(render_scale, 0.5, 1.0)
-	var scene := get_tree().current_scene
+	var viewport: Viewport = get_viewport()
+	if viewport != null:
+		viewport.scaling_3d_scale = clampf(render_scale, 0.5, 1.0)
+	var scene: Node = get_tree().current_scene
 	if scene == null:
 		return
-	var we := scene.get_node_or_null("WorldEnvironment") as WorldEnvironment
-	if we == null or we.environment == null:
+	var world_env: WorldEnvironment = scene.get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if world_env == null:
 		return
-	var env := we.environment
-	var b := clampf(brightness, 0.5, 2.0)
-	if absf(b - 1.0) < 0.001 and not env.adjustment_enabled:
+	if world_env.environment == null:
+		return
+	var env: Environment = world_env.environment
+	var bright: float = clampf(brightness, 0.5, 2.0)
+	# Normal brightness and adjustments still off: nothing to change.
+	var is_default_brightness: bool = absf(bright - 1.0) < 0.001
+	if is_default_brightness and not env.adjustment_enabled:
 		return
 	env.adjustment_enabled = true
-	env.adjustment_brightness = b
+	env.adjustment_brightness = bright
 
 
+## Sets an audio bus volume from a 0 – 1 slider value.
 func _set_bus(bus_name: String, linear: float) -> void:
-	var idx := AudioServer.get_bus_index(bus_name)
-	if idx >= 0:
-		AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(linear, 0.0001)))
+	var bus_index: int = AudioServer.get_bus_index(bus_name)
+	if bus_index < 0:
+		return
+	var safe_linear: float = maxf(linear, 0.0001)
+	AudioServer.set_bus_volume_db(bus_index, linear_to_db(safe_linear))

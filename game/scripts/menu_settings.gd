@@ -25,6 +25,8 @@ var _controls := {}  ## settings key → control, for refreshing after a reset.
 var _value_labels := {}  ## settings key → [Label, unit]
 
 
+## Builds the whole settings screen: panel, tab buttons, one page per tab
+## and the Reset / Back buttons at the bottom.
 func _ready() -> void:
 	Style.full_rect(self)
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -83,6 +85,7 @@ func _ready() -> void:
 		_pages.append(scroll)
 		_page_first.append(null)
 		_list = list
+		# Fill this page with its rows.
 		match i:
 			0: _build_gameplay()
 			1: _build_controls()
@@ -111,6 +114,7 @@ func _ready() -> void:
 
 # ---------------------------------------------------------------- Pages
 
+## GAMEPLAY tab rows.
 func _build_gameplay() -> void:
 	_section("COMBAT")
 	_check("Damage & combat (off: Listeners catch instantly)", "damage_enabled")
@@ -123,6 +127,7 @@ func _build_gameplay() -> void:
 	_check("Toggle run (instead of hold)", "toggle_run")
 
 
+## CONTROLS tab rows, including one rebind button per action.
 func _build_controls() -> void:
 	_section("LOOK")
 	_slider("Mouse sensitivity", "mouse_sensitivity", 0.2, 3.0, 0.05, "x")
@@ -140,18 +145,22 @@ func _build_controls() -> void:
 	_list.add_child(reset)
 
 
+## VIDEO tab rows.
 func _build_video() -> void:
 	_section("DISPLAY")
 	var full := _check("Fullscreen", "fullscreen")
 	if OS.has_feature("web"):
 		full.disabled = true
 		full.tooltip_text = "Use your browser's fullscreen button."
-	var vs := _check("V-sync", "vsync")
+	var vsync_check := _check("V-sync", "vsync")
 	if OS.has_feature("web"):
-		vs.disabled = true
+		vsync_check.disabled = true
 	var fps_names: Array = []
-	for f in Settings.FPS_LIMITS:
-		fps_names.append("Unlimited" if int(f) == 0 else str(f))
+	for fps in Settings.FPS_LIMITS:
+		if int(fps) == 0:
+			fps_names.append("Unlimited")
+		else:
+			fps_names.append(str(fps))
 	_option("FPS limit", "fps_limit", fps_names)
 	_check("Show FPS counter", "show_fps")
 	_section("IMAGE")
@@ -161,6 +170,7 @@ func _build_video() -> void:
 	_check("Particles / dust motes", "particles")
 
 
+## AUDIO tab rows.
 func _build_audio() -> void:
 	_section("VOLUME")
 	_slider("Master volume", "volume_master", 0.0, 1.0, 0.05, "%")
@@ -169,6 +179,7 @@ func _build_audio() -> void:
 	_slider("Voice volume", "volume_voice", 0.0, 1.0, 0.05, "%")
 
 
+## HUD tab rows.
 func _build_hud() -> void:
 	_section("LAYOUT")
 	_option("Crosshair", "crosshair_style", Settings.CROSSHAIRS)
@@ -184,6 +195,7 @@ func _build_hud() -> void:
 	_check("Sound direction indicator", "sound_indicator")
 
 
+## ACCESSIBILITY tab rows.
 func _build_access() -> void:
 	_section("COMFORT")
 	_slider("Camera shake", "camera_shake", 0.0, 1.0, 0.05, "%")
@@ -199,6 +211,7 @@ func _build_access() -> void:
 
 # ---------------------------------------------------------------- Open / close
 
+## Shows the screen with up-to-date values.
 func open() -> void:
 	visible = true
 	_refresh_keys()
@@ -206,6 +219,7 @@ func open() -> void:
 	_select_tab(_tab, true)
 
 
+## Saves and hides the screen.
 func close() -> void:
 	if _waiting_action != "":
 		_stop_waiting()
@@ -216,12 +230,17 @@ func close() -> void:
 	closed.emit()
 
 
+## Shows one tab's page and fixes the keyboard / controller focus links.
 func _select_tab(index: int, focus_tab: bool) -> void:
 	_tab = wrapi(index, 0, TABS.size())
-	for i in _pages.size():
-		_pages[i].visible = i == _tab
-		_tab_buttons[i].set_pressed_no_signal(i == _tab)
-		_tab_buttons[i].add_theme_color_override("font_color", Style.CYAN if i == _tab else Style.TEXT)
+	for i in range(_pages.size()):
+		var is_current: bool = (i == _tab)
+		_pages[i].visible = is_current
+		_tab_buttons[i].set_pressed_no_signal(is_current)
+		if is_current:
+			_tab_buttons[i].add_theme_color_override("font_color", Style.CYAN)
+		else:
+			_tab_buttons[i].add_theme_color_override("font_color", Style.TEXT)
 	_pages[_tab].scroll_vertical = 0
 	# Tab row ↓ goes into the page; the page's first row ↑ back to its tab.
 	var first: Control = _page_first[_tab]
@@ -231,12 +250,14 @@ func _select_tab(index: int, focus_tab: bool) -> void:
 		tb.focus_neighbor_top = tb.get_path_to(_back)
 	if first != null:
 		first.focus_neighbor_top = first.get_path_to(_tab_buttons[_tab])
-	_back.focus_neighbor_top = _back.get_path_to(_last_control(_tab))
-	_reset.focus_neighbor_top = _reset.get_path_to(_last_control(_tab))
+	var last: Control = _last_control(_tab)
+	_back.focus_neighbor_top = _back.get_path_to(last)
+	_reset.focus_neighbor_top = _reset.get_path_to(last)
 	if visible and focus_tab:
 		_tab_buttons[_tab].grab_focus()
 
 
+## The last focusable control on a page (or its tab button if it has none).
 func _last_control(page: int) -> Control:
 	var last: Control = _tab_buttons[page]
 	for c in _controls_in(_pages[page]):
@@ -244,15 +265,20 @@ func _last_control(page: int) -> Control:
 	return last
 
 
+## Every focusable control inside `node` (searching all children), in order.
 func _controls_in(node: Node) -> Array:
 	var out: Array = []
 	for child in node.get_children():
-		if child is Control and (child as Control).focus_mode == Control.FOCUS_ALL and not (child is ScrollBar):
-			out.append(child)
-		out.append_array(_controls_in(child))
+		if child is Control and not (child is ScrollBar):
+			var control: Control = child
+			if control.focus_mode == Control.FOCUS_ALL:
+				out.append(control)
+		var inside: Array = _controls_in(child)
+		out.append_array(inside)
 	return out
 
 
+## Saves a short moment after the last change.
 func _process(delta: float) -> void:
 	if _dirty > 0.0:
 		_dirty -= delta
@@ -260,6 +286,7 @@ func _process(delta: float) -> void:
 			Settings.save()
 
 
+## A row changed a setting: apply it now and save soon.
 func _changed(key: String, value: Variant) -> void:
 	if key == "difficulty":
 		Settings.set_difficulty(int(value))
@@ -267,10 +294,12 @@ func _changed(key: String, value: Variant) -> void:
 		Settings.set(key, value)
 	Settings.apply()
 	_dirty = 0.8
-	if key in ["difficulty", "assist_mode", "hard_mode"]:
+	# These three settings change each other, so redraw the rows.
+	if key == "difficulty" or key == "assist_mode" or key == "hard_mode":
 		_refresh_values()
 
 
+## "Reset to defaults" button.
 func _reset_defaults() -> void:
 	Sfx.play("ui_click", -8.0)
 	Settings.reset_to_defaults()
@@ -278,24 +307,31 @@ func _reset_defaults() -> void:
 	_refresh_values()
 
 
+## Makes every row show the current Settings value.
 func _refresh_values() -> void:
 	for key in _controls:
-		var c: Control = _controls[key]
-		var v: Variant = Settings.get(key)
-		if c is HSlider:
-			(c as HSlider).set_value_no_signal(float(v))
+		var control: Control = _controls[key]
+		var value: Variant = Settings.get(key)
+		if control is HSlider:
+			var slider: HSlider = control
+			slider.set_value_no_signal(float(value))
 			if _value_labels.has(key):
 				var pair: Array = _value_labels[key]
-				(pair[0] as Label).text = _format(float(v), str(pair[1]))
-		elif c is CheckButton:
-			(c as CheckButton).set_pressed_no_signal(bool(v))
-		elif c is OptionButton:
-			var o := c as OptionButton
-			o.select(clampi(int(v), 0, o.item_count - 1))
+				var value_label: Label = pair[0]
+				var unit: String = str(pair[1])
+				value_label.text = _format(float(value), unit)
+		elif control is CheckButton:
+			var check: CheckButton = control
+			check.set_pressed_no_signal(bool(value))
+		elif control is OptionButton:
+			var option: OptionButton = control
+			var last_item: int = option.item_count - 1
+			option.select(clampi(int(value), 0, last_item))
 
 
 # ---------------------------------------------------------------- Rows
 
+## A gold heading on the current page.
 func _section(text: String) -> void:
 	var l := Style.label(text, 18, Style.GOLD, HORIZONTAL_ALIGNMENT_LEFT)
 	l.custom_minimum_size = Vector2(0, 38)
@@ -303,6 +339,7 @@ func _section(text: String) -> void:
 	_list.add_child(l)
 
 
+## A row with a text label on the left; the caller adds the control.
 func _row(text: String) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
@@ -316,6 +353,7 @@ func _row(text: String) -> HBoxContainer:
 	return row
 
 
+## Notes the first control of each page and plays a sound on focus.
 func _remember(c: Control) -> void:
 	var page := _pages.size() - 1
 	if page >= 0 and _page_first[page] == null:
@@ -323,11 +361,13 @@ func _remember(c: Control) -> void:
 	c.focus_entered.connect(_on_focus)
 
 
+## Hover / focus sound.
 func _on_focus() -> void:
 	if visible:
 		Sfx.play("ui_hover", -14.0)
 
 
+## A slider row with the value shown on the right.
 func _slider(text: String, key: String, lo: float, hi: float, step: float, unit: String) -> HSlider:
 	var row := _row(text)
 	var s := HSlider.new()
@@ -356,6 +396,7 @@ func _on_slider(v: float, key: String, unit: String, value_label: Label) -> void
 	_changed(key, v)
 
 
+## Slider value text: "75%", "90°" or "1.00x".
 func _format(v: float, unit: String) -> String:
 	match unit:
 		"%": return "%d%%" % roundi(v * 100.0)
@@ -363,6 +404,7 @@ func _format(v: float, unit: String) -> String:
 	return "%.2f%s" % [v, unit]
 
 
+## An on / off switch row.
 func _check(text: String, key: String) -> CheckButton:
 	var row := _row(text)
 	var c := CheckButton.new()
@@ -380,6 +422,7 @@ func _on_check(on: bool, key: String) -> void:
 	_changed(key, on)
 
 
+## A drop-down row.
 func _option(text: String, key: String, options: Array) -> OptionButton:
 	var row := _row(text)
 	var o := OptionButton.new()
@@ -402,6 +445,7 @@ func _on_option(index: int, key: String) -> void:
 
 # ---------------------------------------------------------------- Key rebinding
 
+## A row with a button that rebinds one action.
 func _key_row(action: String) -> void:
 	var row := _row(str(Style.ACTION_NAMES.get(action, action)))
 	var b := Style.small_button(Style.primary_name(action), 18)
@@ -412,12 +456,14 @@ func _key_row(action: String) -> void:
 	_remember(b)
 
 
+## Updates every rebind button's text.
 func _refresh_keys() -> void:
 	for action in _key_buttons:
 		var b: Button = _key_buttons[action]
 		b.text = Style.primary_name(action)
 
 
+## A rebind button was pressed: wait for the next key or mouse button.
 func _start_waiting(action: String, b: Button) -> void:
 	if _waiting_action != "":
 		_stop_waiting()
@@ -427,61 +473,81 @@ func _start_waiting(action: String, b: Button) -> void:
 	b.text = "Press a key..."
 
 
+## Stops waiting for a key.
 func _stop_waiting() -> void:
 	_waiting_action = ""
 	_waiting_button = null
 	_refresh_keys()
 
 
+## "Reset keys to default" button.
 func _reset_keys() -> void:
 	Sfx.play("ui_click", -8.0)
 	Style.reset_keys()
 	_refresh_keys()
 
 
+## While waiting for a rebind: the next key (Esc cancels) or mouse button
+## becomes the new binding.
 func _input(event: InputEvent) -> void:
-	if not visible or _waiting_action == "":
+	if not visible:
 		return
+	if _waiting_action == "":
+		return
+	# Ignore the click / key that started the wait.
 	if Time.get_ticks_msec() - _wait_start < 180:
 		return
-	var key := event as InputEventKey
-	var mb := event as InputEventMouseButton
-	if key != null and key.pressed and not key.echo:
+	if event is InputEventKey:
+		var key: InputEventKey = event
+		if not key.pressed or key.echo:
+			return
 		get_viewport().set_input_as_handled()
-		var code: int = key.physical_keycode if key.physical_keycode != 0 else key.keycode
+		var code: int = key.physical_keycode
+		if code == 0:
+			code = key.keycode
 		if code != KEY_ESCAPE:
 			Style.rebind(_waiting_action, key)
 			Sfx.play("ui_click", -6.0)
-		var b := _waiting_button
-		_stop_waiting()
-		if b != null:
-			b.grab_focus()
-	elif mb != null and mb.pressed:
+		_finish_waiting()
+	elif event is InputEventMouseButton:
+		var mb: InputEventMouseButton = event
+		if not mb.pressed:
+			return
 		get_viewport().set_input_as_handled()
 		Style.rebind(_waiting_action, mb)
 		Sfx.play("ui_click", -6.0)
-		var b2 := _waiting_button
-		_stop_waiting()
-		if b2 != null:
-			b2.grab_focus()
+		_finish_waiting()
 
 
+## Stops waiting and puts focus back on the rebind button.
+func _finish_waiting() -> void:
+	var button: Button = _waiting_button
+	_stop_waiting()
+	if button != null:
+		button.grab_focus()
+
+
+## LB / RB or PageUp / PageDown switch tabs; Esc / pause closes.
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible or _waiting_action != "":
+	if not visible:
 		return
-	var step := 0
-	var jb := event as InputEventJoypadButton
-	if jb != null and jb.pressed:
-		if jb.button_index == JOY_BUTTON_LEFT_SHOULDER:
-			step = -1
-		elif jb.button_index == JOY_BUTTON_RIGHT_SHOULDER:
-			step = 1
-	var key := event as InputEventKey
-	if key != null and key.pressed and not key.echo:
-		if key.keycode == KEY_PAGEUP:
-			step = -1
-		elif key.keycode == KEY_PAGEDOWN:
-			step = 1
+	if _waiting_action != "":
+		return
+	var step: int = 0
+	if event is InputEventJoypadButton:
+		var jb: InputEventJoypadButton = event
+		if jb.pressed:
+			if jb.button_index == JOY_BUTTON_LEFT_SHOULDER:
+				step = -1
+			elif jb.button_index == JOY_BUTTON_RIGHT_SHOULDER:
+				step = 1
+	if event is InputEventKey:
+		var key: InputEventKey = event
+		if key.pressed and not key.echo:
+			if key.keycode == KEY_PAGEUP:
+				step = -1
+			elif key.keycode == KEY_PAGEDOWN:
+				step = 1
 	if step != 0:
 		get_viewport().set_input_as_handled()
 		Sfx.play("ui_click", -10.0)
