@@ -28,7 +28,6 @@ static var _spaced: FontVariation
 ## True when the last input came from a controller (prompts show pad buttons).
 static var using_pad := false
 
-
 ## Letter-spaced version of the default font, for titles and menu items.
 static func spaced_font() -> FontVariation:
 	if _spaced == null:
@@ -112,6 +111,8 @@ static func small_button(text: String, size: int = 20) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.focus_mode = Control.FOCUS_ALL
+	b.add_theme_font_override("font", FONT)
+
 	b.add_theme_font_size_override("font_size", size)
 	b.add_theme_color_override("font_color", TEXT)
 	b.add_theme_color_override("font_focus_color", Color.WHITE)

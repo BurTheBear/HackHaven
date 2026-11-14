@@ -1085,7 +1085,7 @@ func _draw_pebbles_and_upgrades(size: Vector2, a: float) -> void:
 				var rise := Vector2(0.0, -(1.0 - d) * 12.0)
 				_hud.draw_circle(p + jitter + rise, 6.0 * d, Color(gold.r, gold.g, gold.b, d))
 	if Game.pebbles == 0 and _empty_shake > 0.0:
-		_hud.draw_string(ThemeDB.fallback_font, base + Vector2(-6.0, -18.0), "OUT OF PEBBLES", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.5, 0.45, _empty_shake))
+		_hud.draw_string(Style.FONT, base + Vector2(-6.0, -18.0), "OUT OF PEBBLES", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.5, 0.45, _empty_shake))
 
 	# Echo crystal upgrades: small icons after the pebbles.
 	var x := base.x + slots * 24.0 + 18.0
