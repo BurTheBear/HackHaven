@@ -1,5 +1,6 @@
-# Agent instructions (repo root)
+# Agent instructions
 
-- The main game lives in `game/`. Before changing anything there, read `game/AGENTS.md` and follow it.
-- `atharv/` and `shreyansh/` are personal workspaces. Only edit the one you were asked to work in.
-- Run `npm run dev` and `npm run build` from inside `game/`.
+- The game is a Godot 4 project in `game/`: GDScript, Compatibility renderer, exported to the web.
+- Use Godot 4 APIs only (CharacterBody3D, @export, @onready, await, signal.connect). Never Godot 3 syntax.
+- Each teammate owns their own scenes and scripts. Only change the files you were asked about, and don't edit `main.tscn` unless asked.
+- Art and audio come from CC0 asset packs only. Never generate images, textures, models or sound with AI.
