@@ -117,9 +117,9 @@ static func small_button(text: String, size: int = 20) -> Button:
 	b.add_theme_color_override("font_color", TEXT)
 	b.add_theme_color_override("font_focus_color", Color.WHITE)
 	b.add_theme_color_override("font_hover_color", Color.WHITE)
-	var normal := box(Color(0.1, 0.14, 0.16, 0.9), 3, 10)
-	var hover := box(Color(0.14, 0.26, 0.3, 0.95), 3, 10)
-	var focus := box(Color(0.14, 0.3, 0.34, 0.95), 3, 10)
+	var normal := box(Color(0.173, 0.095, 0.213, 0.9), 3, 10)
+	var hover := box(Color(0.321, 0.169, 0.359, 0.95), 3, 10)
+	var focus := box(Color(0.339, 0.21, 0.414, 0.95), 3, 10)
 	focus.border_color = CYAN
 	focus.set_border_width_all(2)
 	b.add_theme_stylebox_override("normal", normal)

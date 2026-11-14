@@ -714,7 +714,7 @@ transform = Transform3D(0.9962, 0, 0.0872, 0, 1, 0, -0.0872, 0, 0.9962, 12.7, 0,
 transform = Transform3D(-0.1736, 0, 0.9848, 0, 1, 0, -0.9848, 0, -0.1736, 7.2, 0, -78.5)
 
 [node name="rubble141" parent="." unique_id=1678669277 instance=ExtResource("e11")]
-transform = Transform3D(0.9848, 0, 0.1736, 0, 1, 0, -0.1736, 0, 0.9848, 21, 0, -97.4)
+transform = Transform3D(0.9848, 0, 0.1736, 0, 1, 0, -0.1736, 0, 0.9848, 21.48812, 0, -96.64021)
 
 [node name="crates142" parent="." unique_id=908772988 instance=ExtResource("e8")]
 transform = Transform3D(0.1736, 0, 0.9848, 0, 1, 0, -0.9848, 0, 0.1736, 6.9, 0, -96)

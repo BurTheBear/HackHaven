@@ -1,5 +1,5 @@
 extends SceneTree
-## Loads each complete level in a disposable project, including menus and UI.
+## loads menus UI and game in disposable proj
 func _initialize() -> void:
 	call_deferred("run")
 

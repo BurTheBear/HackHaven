@@ -65,7 +65,7 @@ func _ready() -> void:
 	_title.offset_bottom = 140.0
 	add_child(_title)
 
-	_tagline = Style.label("Echolocation, but Monsters like noise. :3", 18, Style.MUTED)
+	_tagline = Style.label("Echolocation, but Monsters like noise. :3\n The noise bounces back", 18, Style.MUTED)
 	_tagline.anchor_left = 0.0
 	_tagline.anchor_right = 1.0
 	_tagline.anchor_top = 0.12

@@ -60,9 +60,6 @@ func show_end(can_go_deeper: bool, total_logs: int, total_crystals: int) -> void
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title.modulate.a = 0.0
 	_column.add_child(_title)
-	var twist := Style.label("Mara never left. She just stopped needing her eyes.", 17, Color(0.75, 0.82, 0.9), HORIZONTAL_ALIGNMENT_LEFT)
-	twist.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_column.add_child(twist)
 	_gap(10)
 
 	var pings := Game.get_stat("pings")
