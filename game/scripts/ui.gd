@@ -37,6 +37,7 @@ const PROMPTS := {
 	"whisper": ["whisper", "Whisper: a small echo nothing can hear."],
 	"chalk": ["chalk", "Chalk mark: it stays when the echo fades."],
 	"throw": ["throw", "Throw a pebble. Hold to aim. Its echo lands far away."],
+	"jump": ["jump", "Jump. The landing makes a sound."],
 	"sneak": ["sneak", "Sneak: your footsteps go silent."],
 	"run": ["run", "Run: fast, but loud."],
 	"interact": ["interact", "Play the recording."],
@@ -63,12 +64,9 @@ uniform float base_vignette = 0.5;
 void fragment() {
 	vec2 uv = UV - 0.5;
 	float d = length(uv * vec2(1.0, 0.9)) * 1.4;
-	float vig = smoothstep(0.45, 1.05, d) * base_vignette;
-	float pulse = 0.8 + 0.2 * sin(TIME * mix(2.0, 9.0, dread));
-	float red = smoothstep(0.3, 0.9, d) * dread * pulse;
-	float a = clamp(vig + red, 0.0, 1.0);
-	vec3 col = vec3(0.35, 0.0, 0.02) * clamp(red / max(a, 0.001), 0.0, 1.0);
-	COLOR = vec4(col, a);
+	// Plain dark vignette that closes in a little as a Listener nears.
+	float vig = smoothstep(0.45 - 0.1 * dread, 1.05, d) * (base_vignette + 0.15 * dread);
+	COLOR = vec4(0.0, 0.0, 0.0, clamp(vig, 0.0, 1.0));
 }
 """
 
@@ -85,6 +83,12 @@ void fragment() {
 	COLOR = vec4(vec3(n), amount * (0.4 + 0.6 * n));
 }
 """
+
+## Proximity bar: grey-cyan when a Listener is far, amber, then red up close.
+const PRESENCE_FAR := Color(0.5, 0.64, 0.68)
+const PRESENCE_MID := Color(1.0, 0.7, 0.26)
+const PRESENCE_NEAR := Color(0.92, 0.18, 0.12)
+const PRESENCE_WIDTH := 220.0
 
 ## Reads the screen: chromatic aberration at high dread, and a ripple ring
 ## when you ping. Only visible while one of them is active.
@@ -199,6 +203,10 @@ var _breath_fill: ColorRect
 var _toast: Label
 var _toast_tween: Tween
 var _chase := false
+var _presence := 0.0
+var _presence_root: Control
+var _presence_fill: ColorRect
+var _flash_in := 0.0
 var _chase_amt := 0.0
 var _hide_amt := 0.0
 var _black_tween: Tween
@@ -236,7 +244,7 @@ func _ready() -> void:
 		_indicators = _add_script_control(INDICATORS_PATH)
 	_build_subtitles()
 	_build_extras()
-	_flash = _rect(Color(0.6, 0.0, 0.03, 0.0))
+	_flash = _rect(Color(0.0, 0.0, 0.01, 0.0))
 	_black = _rect(Color(0.0, 0.0, 0.0, 0.0))
 	_center = _center_label(40, Color(0.95, 0.9, 0.9), -20.0)
 	_tip = _center_label(19, Style.MUTED, 50.0)
@@ -397,6 +405,66 @@ func _build_extras() -> void:
 	_toast.modulate.a = 0.0
 	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_toast)
+	_build_presence()
+
+
+func _build_presence() -> void:
+	_presence_root = Control.new()
+	_presence_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_presence_root.anchor_left = 0.5
+	_presence_root.anchor_right = 0.5
+	_presence_root.anchor_top = 1.0
+	_presence_root.anchor_bottom = 1.0
+	_presence_root.offset_left = -PRESENCE_WIDTH * 0.5
+	_presence_root.offset_right = PRESENCE_WIDTH * 0.5
+	_presence_root.offset_top = -38.0
+	_presence_root.offset_bottom = -35.0
+	_presence_root.modulate.a = 0.0
+	_presence_root.visible = false
+	root.add_child(_presence_root)
+	var bg := ColorRect.new()
+	bg.color = Color(1, 1, 1, 0.1)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_presence_root.add_child(bg)
+	_presence_fill = ColorRect.new()
+	_presence_fill.color = PRESENCE_FAR
+	_presence_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_presence_fill.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_presence_fill.anchor_right = 0.0
+	_presence_root.add_child(_presence_fill)
+	var lbl := Style.label("PRESENCE", 12, Color(0.75, 0.8, 0.82, 0.7), HORIZONTAL_ALIGNMENT_RIGHT)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.anchor_left = 0.0
+	lbl.anchor_right = 0.0
+	lbl.anchor_top = 0.5
+	lbl.anchor_bottom = 0.5
+	lbl.offset_left = -110.0
+	lbl.offset_right = -10.0
+	lbl.offset_top = -10.0
+	lbl.offset_bottom = 10.0
+	_presence_root.add_child(lbl)
+
+
+func _update_presence(delta: float, live: bool) -> void:
+	var target := _dread if live else 0.0
+	_presence = lerpf(_presence, target, 1.0 - exp(-4.0 * delta))
+	var vis := smoothstep(0.02, 0.1, _presence)
+	_presence_root.visible = vis > 0.001
+	if not _presence_root.visible:
+		return
+	var col: Color
+	if _presence < 0.5:
+		col = PRESENCE_FAR.lerp(PRESENCE_MID, smoothstep(0.15, 0.5, _presence))
+	else:
+		col = PRESENCE_MID.lerp(PRESENCE_NEAR, smoothstep(0.5, 0.9, _presence))
+	_presence_fill.color = col
+	_presence_fill.anchor_right = clampf(_presence, 0.0, 1.0)
+	_presence_fill.offset_right = 0.0
+	var pulse := 1.0
+	if _presence > 0.8 and not Settings.reduce_shake:
+		pulse = 0.8 + 0.2 * sin(_time * 5.0)
+	_presence_root.modulate.a = vis * pulse
 
 
 func _update_extras(delta: float, live: bool) -> void:
@@ -404,7 +472,7 @@ func _update_extras(delta: float, live: bool) -> void:
 	_hide_amt = move_toward(_hide_amt, 0.75 if hiding else 0.0, delta * 2.0)
 	var chase_target := 0.0
 	if _chase and live:
-		chase_target = 0.4 + 0.15 * sin(_time * 6.0) if not Settings.reduce_shake else 0.4
+		chase_target = 0.6
 	_chase_amt = move_toward(_chase_amt, chase_target, delta * 1.5)
 	_extra.visible = _hide_amt > 0.01 or _chase_amt > 0.01
 	if _extra.visible:
@@ -413,12 +481,13 @@ func _update_extras(delta: float, live: bool) -> void:
 			m.set_shader_parameter("tint", Color(0.0, 0.02, 0.05))
 			m.set_shader_parameter("amount", _hide_amt)
 		else:
-			m.set_shader_parameter("tint", Color(0.5, 0.0, 0.03))
+			m.set_shader_parameter("tint", Color(0.0, 0.0, 0.01))
 			m.set_shader_parameter("amount", _chase_amt)
 	var breath: float = _pget("breath", 1.0)
 	var holding: bool = _pget("holding_breath", false) == true
 	_breath_bg.visible = live and (holding or breath < 0.99)
 	_breath_fill.anchor_right = clampf(breath, 0.0, 1.0)
+	_update_presence(delta, live)
 
 
 func _on_journal_page(_index: int, _text: String) -> void:
@@ -538,11 +607,12 @@ func set_dread(v: float) -> void:
 	(_vignette.material as ShaderMaterial).set_shader_parameter("dread", _dread)
 
 
+## Kept for callers: now a quick fade to dark rather than a red flash.
 func flash_red() -> void:
 	if Settings.no_flash:
-		_pulse_edge(Style.RED, 0.9, 1.4)
+		_pulse_edge(Color(0.0, 0.0, 0.0), 1.0, 1.6)
 	else:
-		_flash_alpha = 0.75
+		_flash_in = 0.18
 
 
 ## Main menu, after the boot cards on the first visit.
@@ -615,8 +685,8 @@ func play_opening_text() -> void:
 func caught_out() -> void:
 	_caught_busy = true
 	if Settings.skip_jumpscare:
-		# The director skips its flash in this mode: a gentle red fade instead.
-		_pulse_edge(Style.RED, 0.7, 1.6)
+		# The director skips its flash in this mode: a gentle dark fade instead.
+		_pulse_edge(Color(0.0, 0.0, 0.0), 1.0, 1.6)
 	await get_tree().create_timer(0.55).timeout
 	if _black_tween != null:
 		_black_tween.kill()
@@ -679,8 +749,12 @@ func _process(delta: float) -> void:
 		_set_pause(should_pause)
 	var live := playing and not get_tree().paused
 
-	# Red flash.
-	_flash_alpha = maxf(_flash_alpha - delta * 0.9, 0.0)
+	# Catch fade: darkens quickly, then lifts.
+	if _flash_in > 0.0:
+		_flash_in -= delta
+		_flash_alpha = move_toward(_flash_alpha, 0.8, delta * 5.0)
+	else:
+		_flash_alpha = maxf(_flash_alpha - delta * 0.9, 0.0)
 	_flash.color.a = _flash_alpha
 
 	# Chromatic aberration at high dread + the ripple of your own ping.

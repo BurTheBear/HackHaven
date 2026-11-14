@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://cgjvhjkj33hmm"
+
+[deps]
+
+files=["res://audio/freesound/USAGE.intended.translation", "res://audio/freesound/USAGE.loop.translation", "res://audio/freesound/USAGE.source.translation", "res://audio/freesound/USAGE.license.translation"]
+
+source_file="res://audio/freesound/USAGE.csv"
+dest_files=["res://audio/freesound/USAGE.intended.translation", "res://audio/freesound/USAGE.loop.translation", "res://audio/freesound/USAGE.source.translation", "res://audio/freesound/USAGE.license.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

@@ -48,7 +48,8 @@ Each loop takes roughly 10 to 30 seconds.
 |---|---|
 | Move | WASD or arrow keys |
 | Look | Mouse (click the game to lock the mouse) |
-| Ping | Left click or Space |
+| Ping | Left click / R2 |
+| Jump (landing makes noise unless sneaking) | Space / controller A |
 | Throw pebble | Right click or E |
 | Whisper ping (small, silent) | Q |
 | Sneak (silent footsteps) / Run (loud) | Hold C / Hold Shift |

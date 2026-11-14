@@ -120,6 +120,7 @@ func _controls_text() -> String:
 	var parts := [
 		"Move %s" % ("[WASD]" if not Style.using_pad else "[Left stick]"),
 		"Ping %s" % Style.key_name("ping"),
+		"Jump %s" % Style.key_name("jump"),
 		"Whisper %s" % Style.key_name("whisper"),
 		"Throw %s" % Style.key_name("throw"),
 	]
