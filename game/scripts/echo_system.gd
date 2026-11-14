@@ -31,6 +31,7 @@ var lures_fooled := 0
 var adapt_announced := false
 
 
+## Fill every slot with "empty" values (age -1 means the slot is free).
 func _ready() -> void:
 	_origins.resize(SLOTS)
 	_origins.fill(Vector3.ZERO)
@@ -40,17 +41,25 @@ func _ready() -> void:
 	_radii.fill(22.0)
 
 
+## Starts a new echo ring at `origin` and tells everyone who listens for sounds.
 func emit_ping(origin: Vector3, max_radius: float = 22.0, loud: bool = true, is_pebble: bool = false) -> void:
-	var first := GROUP_SIZE if is_pebble else 0
+	# Player pings use slots 0-3, pebble pings use slots 4-7.
+	var first := 0
+	if is_pebble:
+		first = GROUP_SIZE
+	var last := first + GROUP_SIZE
+
+	# Take the first free slot; if none is free, reuse the oldest one.
 	var slot := first
 	var oldest := -1.0
-	for i in range(first, first + GROUP_SIZE):
+	for i in range(first, last):
 		if _ages[i] < 0.0:
 			slot = i
 			break
 		if _ages[i] > oldest:
 			oldest = _ages[i]
 			slot = i
+
 	_origins[slot] = origin
 	_ages[slot] = 0.0
 	_radii[slot] = max_radius
@@ -60,7 +69,6 @@ func emit_ping(origin: Vector3, max_radius: float = 22.0, loud: bool = true, is_
 	ping_emitted.emit(origin, max_radius, loud)
 
 
-## Called on every footstep: briefly lights the floor around the player.
 ## Challenge mode picked on the menu ("", "no_ping", "one_pebble", "darkness").
 func challenge() -> String:
 	var c: Variant = Game.get("challenge")
@@ -69,16 +77,19 @@ func challenge() -> String:
 	return str(c)
 
 
+## Called on every footstep: briefly lights the floor around the player.
 func step() -> void:
 	if challenge() == "darkness":
 		return
 	_step_glow = 1.0
 
 
+## A sound with no light (footsteps, gasps, hits): only Listeners hear it.
 func make_noise(origin: Vector3, radius: float) -> void:
 	noise_made.emit(origin, radius)
 
 
+## Removes every ping (used on respawn / restart).
 func clear() -> void:
 	for i in SLOTS:
 		_ages[i] = -1.0
@@ -86,6 +97,7 @@ func clear() -> void:
 	_since_player_ping = 99.0
 
 
+## Tells the shaders where the player is.
 func set_player_position(p: Vector3) -> void:
 	RenderingServer.global_shader_parameter_set("player_pos", p)
 
@@ -100,17 +112,28 @@ func last_player_ping_radius() -> float:
 	return _player_ping_radius
 
 
+## Every frame: age the pings and send all of them to the reveal shader.
 func _process(delta: float) -> void:
 	for i in SLOTS:
+		# Age the ping in this slot; free the slot once it is too old.
 		if _ages[i] >= 0.0:
 			_ages[i] += delta
 			if _ages[i] > MAX_AGE:
 				_ages[i] = -1.0
-		var o := _origins[i]
-		RenderingServer.global_shader_parameter_set("ping_%d" % i, Vector4(o.x, o.y, o.z, _ages[i]))
-		RenderingServer.global_shader_parameter_set("ping_radius_%d" % i, _radii[i])
-	_step_glow = maxf(_step_glow - delta / STEP_FADE, 0.0)
+		var origin := _origins[i]
+		var ping_value := Vector4(origin.x, origin.y, origin.z, _ages[i])
+		RenderingServer.global_shader_parameter_set("ping_" + str(i), ping_value)
+		RenderingServer.global_shader_parameter_set("ping_radius_" + str(i), _radii[i])
+
+	# The footstep glow fades out over STEP_FADE seconds.
+	_step_glow = _step_glow - delta / STEP_FADE
+	if _step_glow < 0.0:
+		_step_glow = 0.0
 	_since_player_ping += delta
 	RenderingServer.global_shader_parameter_set("step_glow", _step_glow)
+
 	# Assist: always-on floor outline near the player (0 = off).
-	RenderingServer.global_shader_parameter_set("hint_glow", 0.0 if challenge() == "darkness" else clampf(float(Settings.hint_glow), 0.0, 1.0))
+	var hint := 0.0
+	if challenge() != "darkness":
+		hint = clampf(float(Settings.hint_glow), 0.0, 1.0)
+	RenderingServer.global_shader_parameter_set("hint_glow", hint)

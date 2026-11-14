@@ -61,6 +61,7 @@ var _stone_spots: Array[Vector3] = []
 var _voice: AudioStreamPlayer3D
 
 
+## Connects signals, joins the checkpoint group and builds the shape.
 func _ready() -> void:
 	monitoring = true
 	body_entered.connect(_on_body_entered)
@@ -79,6 +80,7 @@ func _ready() -> void:
 		_check_overlap()
 
 
+## When the run starts, check whether the player is already inside.
 func _on_state_changed(state: int) -> void:
 	# The player spawns inside the first hint / zone areas while on the title
 	# screen, so body_entered is ignored then. Re-check once the run starts.
@@ -86,6 +88,7 @@ func _on_state_changed(state: int) -> void:
 		_check_overlap()
 
 
+## Activates this trigger if the player is already standing in it.
 func _check_overlap() -> void:
 	_overlap_checked = true
 	await get_tree().physics_frame
@@ -99,6 +102,7 @@ func _check_overlap() -> void:
 			return
 
 
+## The player walked in.
 func _on_body_entered(body: Node3D) -> void:
 	if not body.is_in_group("player"):
 		return
@@ -107,73 +111,131 @@ func _on_body_entered(body: Node3D) -> void:
 		_activate()
 
 
+## The player walked out.
 func _on_body_exited(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		_player_inside = false
 
 
+## Called when the player is inside this trigger during play.
 func _activate() -> void:
-	# Chase events repeat on every entry (the chase can restart after a catch).
-	if event_name != "" and (not _event_sent or event_name.begins_with("chase")):
-		_event_sent = true
-		Game.level_event.emit(event_name)
+	_send_level_event()
+
 	if kind == Kind.VOICE_LOG:
 		# Played with the interact action while standing here (see _process).
 		Game.prompt_requested.emit("interact")
 		return
-	if _used:
+
+	if not _can_use_now():
 		return
-	# Full hands: leave the pile for later instead of wasting it.
-	if kind == Kind.PEBBLES and Game.pebbles >= Game.max_pebbles:
-		return
-	if kind == Kind.CHECKPOINT and route_order < int(get_parent().get_meta("checkpoint_order", -1)):
-		return
+
 	_used = true
 	_play_sound()
 	if subtitle != "" and kind != Kind.HINT:
 		Game.show_subtitle(subtitle)
+
 	match kind:
 		Kind.CHECKPOINT:
-			get_parent().set_meta("checkpoint_order", route_order)
-			_lit = true
-			_flare = 1.6
-			var spot := global_position + Vector3(0.0, floor_offset + 0.1, 0.0)
-			Game.reach_checkpoint(spot, deg_to_rad(yaw_degrees))
+			_use_checkpoint()
 		Kind.PEBBLES:
-			_picked_since_checkpoint = true
-			Game.add_pebbles(pebble_amount)
-			hide()
+			_use_pebbles()
 		Kind.CRYSTAL:
-			Game.crystals_found += 1
-			Game.add_stat("crystals")
-			Game.show_subtitle(Game.apply_upgrade(upgrade))
-			hide()
+			_use_crystal()
 		Kind.EXIT:
 			Game.win()
 		Kind.HINT:
-			if prompt_id != "":
-				Game.prompt_requested.emit(prompt_id)
-			elif subtitle != "":
-				Game.show_subtitle(subtitle)
+			_use_hint()
 		Kind.ZONE:
 			Game.current_zone = zone_name
 			Game.zone_entered.emit(zone_name)
 		Kind.DAGGER:
-			Game.pick_dagger()
-			Sfx.play("dagger_pickup", -6.0)
-			if Game.damage_enabled():
-				Game.prompt_requested.emit("attack")
-				if subtitle == "":
-					Game.show_subtitle("A dagger. They can bleed.")
-			hide()
+			_use_dagger()
 		Kind.JOURNAL:
-			# game_state.gd records the page and the stat.
-			if Game.has_signal("journal_page"):
-				Game.emit_signal("journal_page", journal_index, subtitle)
-			Sfx.play("pickup_pebbles", -12.0, &"Master", 1.6)
-			hide()
+			_use_journal()
 
 
+## Sends this trigger's level event (once, except chase events, which repeat
+## on every entry because the chase can restart after a catch).
+func _send_level_event() -> void:
+	if event_name == "":
+		return
+	var is_chase_event := event_name.begins_with("chase")
+	if _event_sent and not is_chase_event:
+		return
+	_event_sent = true
+	Game.level_event.emit(event_name)
+
+
+## False when this trigger should do nothing right now.
+func _can_use_now() -> bool:
+	if _used:
+		return false
+	# Full hands: leave the pile for later instead of wasting it.
+	if kind == Kind.PEBBLES and Game.pebbles >= Game.max_pebbles:
+		return false
+	# An earlier checkpoint never replaces a later one.
+	if kind == Kind.CHECKPOINT:
+		var best_order := int(get_parent().get_meta("checkpoint_order", -1))
+		if route_order < best_order:
+			return false
+	return true
+
+
+## Lights the lantern and saves this spot as the respawn point.
+func _use_checkpoint() -> void:
+	get_parent().set_meta("checkpoint_order", route_order)
+	_lit = true
+	_flare = 1.6
+	var spot := global_position + Vector3(0.0, floor_offset + 0.1, 0.0)
+	var yaw := deg_to_rad(yaw_degrees)
+	Game.reach_checkpoint(spot, yaw)
+
+
+## Gives the player the pebbles and hides the pile.
+func _use_pebbles() -> void:
+	_picked_since_checkpoint = true
+	Game.add_pebbles(pebble_amount)
+	hide()
+
+
+## Counts the crystal, applies its upgrade and hides it.
+func _use_crystal() -> void:
+	Game.crystals_found += 1
+	Game.add_stat("crystals")
+	var upgrade_text: String = Game.apply_upgrade(upgrade)
+	Game.show_subtitle(upgrade_text)
+	hide()
+
+
+## Shows a control prompt, or the plain subtitle when there is no prompt.
+func _use_hint() -> void:
+	if prompt_id != "":
+		Game.prompt_requested.emit(prompt_id)
+	elif subtitle != "":
+		Game.show_subtitle(subtitle)
+
+
+## Gives the player the dagger and hides it.
+func _use_dagger() -> void:
+	Game.pick_dagger()
+	Sfx.play("dagger_pickup", -6.0)
+	if Game.damage_enabled():
+		Game.prompt_requested.emit("attack")
+		if subtitle == "":
+			Game.show_subtitle("A dagger. They can bleed.")
+	hide()
+
+
+## Hands the journal page to the game state and hides it.
+func _use_journal() -> void:
+	# game_state.gd records the page and the stat.
+	if Game.has_signal("journal_page"):
+		Game.emit_signal("journal_page", journal_index, subtitle)
+	Sfx.play("pickup_pebbles", -12.0, &"Master", 1.6)
+	hide()
+
+
+## Plays this voice log and marks it as found.
 func _play_log() -> void:
 	_replay_wait = 1.5
 	_play_sound()
@@ -184,6 +246,7 @@ func _play_log() -> void:
 		Game.add_stat("logs")
 
 
+## A new checkpoint was reached: pickups before it are now kept for good.
 func _on_checkpoint_reached() -> void:
 	_picked_since_checkpoint = false
 
@@ -197,12 +260,16 @@ func _on_player_caught() -> void:
 		show()
 
 
+## Plays this trigger's own sound if it has one, otherwise a stock sound.
 func _play_sound() -> void:
 	if sound:
 		if _voice == null:
 			_voice = AudioStreamPlayer3D.new()
 			_voice.stream = sound
-			_voice.bus = &"Voice" if kind == Kind.VOICE_LOG else &"Master"
+			if kind == Kind.VOICE_LOG:
+				_voice.bus = &"Voice"
+			else:
+				_voice.bus = &"Master"
 			add_child(_voice)
 		_voice.play()
 		return
@@ -217,18 +284,31 @@ func _play_sound() -> void:
 			Sfx.play("click", -6.0)
 
 
+## Every frame: voice logs listen for "interact", and the shape animates.
 func _process(delta: float) -> void:
 	_time += delta
 	if kind == Kind.VOICE_LOG:
 		_replay_wait = maxf(_replay_wait - delta, 0.0)
-		if _player_inside and _replay_wait <= 0.0 and Game.state == Game.State.PLAYING and Input.is_action_just_pressed("interact"):
+		if _wants_to_play_log():
 			_play_log()
 	if _visual != null and visible:
 		_animate(delta)
 
 
+## True when the player is standing here and just pressed "interact".
+func _wants_to_play_log() -> bool:
+	if not _player_inside:
+		return false
+	if _replay_wait > 0.0:
+		return false
+	if Game.state != Game.State.PLAYING:
+		return false
+	return Input.is_action_just_pressed("interact")
+
+
 # ---------------------------------------------------------------- Visuals
 
+## Pulses the glow (and spins / bobs some shapes) each frame.
 func _animate(delta: float) -> void:
 	var glow := 1.0
 	var color := _base_color
@@ -261,7 +341,10 @@ func _animate(delta: float) -> void:
 			glow = 0.75 + 0.25 * sin(_time * 3.0)
 			_visual.rotation.y += delta * 0.9
 			_visual.position.y = floor_offset + 0.35 + sin(_time * 1.6) * 0.05
-	_material.albedo_color = Color(color.r * glow, color.g * glow, color.b * glow, 1.0)
+	var red := color.r * glow
+	var green := color.g * glow
+	var blue := color.b * glow
+	_material.albedo_color = Color(red, green, blue, 1.0)
 
 
 ## A tiny bright glint hops between the stones of a pile.
@@ -269,23 +352,40 @@ func _twinkle() -> void:
 	if _glint == null or _stone_spots.is_empty():
 		return
 	var phase := _time * 2.1
+	# Which twinkle we're on (goes up by one every full sine wave).
 	var cycle := int(phase / TAU)
-	var k := pow(maxf(sin(phase), 0.0), 10.0)
-	_glint.visible = k > 0.03
-	_glint.position = _stone_spots[(cycle * 3) % _stone_spots.size()]
-	_glint.scale = Vector3.ONE * maxf(k, 0.05)
+	# A short, sharp flash at the top of each sine wave.
+	var wave := maxf(sin(phase), 0.0)
+	var brightness := pow(wave, 10.0)
+	_glint.visible = brightness > 0.03
+	# Jump three stones along each time, wrapping around the pile.
+	var spot_index := (cycle * 3) % _stone_spots.size()
+	_glint.position = _stone_spots[spot_index]
+	_glint.scale = Vector3.ONE * maxf(brightness, 0.05)
 
 
+## True for the kinds of trigger that get a glowing shape.
+func _has_shape() -> bool:
+	match kind:
+		Kind.PEBBLES, Kind.VOICE_LOG, Kind.CRYSTAL, Kind.CHECKPOINT, Kind.JOURNAL, Kind.DAGGER:
+			return true
+	return false
+
+
+## Builds the glowing shape for this kind of pickup.
 func _build_visual() -> void:
-	if kind != Kind.PEBBLES and kind != Kind.VOICE_LOG and kind != Kind.CRYSTAL and kind != Kind.CHECKPOINT and kind != Kind.JOURNAL and kind != Kind.DAGGER:
+	if not _has_shape():
 		return
 	_visual = Node3D.new()
 	_visual.name = "Shape"
 	add_child(_visual)
 	_visual.position = Vector3(0.0, floor_offset, 0.0)
-	_base_color = CRYSTAL_BLUE if kind == Kind.CRYSTAL else GOLD
-	if kind == Kind.DAGGER:
+	if kind == Kind.CRYSTAL:
+		_base_color = CRYSTAL_BLUE
+	elif kind == Kind.DAGGER:
 		_base_color = DAGGER_STEEL
+	else:
+		_base_color = GOLD
 	_material = StandardMaterial3D.new()
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.albedo_color = _base_color
@@ -304,6 +404,7 @@ func _build_visual() -> void:
 			_build_dagger()
 
 
+## Adds one glowing mesh piece to the shape.
 func _part(mesh: Mesh, pos: Vector3, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
@@ -315,6 +416,7 @@ func _part(mesh: Mesh, pos: Vector3, rot_deg: Vector3 = Vector3.ZERO) -> MeshIns
 	return mi
 
 
+## A low-detail sphere mesh.
 func _sphere(radius: float, height: float) -> SphereMesh:
 	var mesh := SphereMesh.new()
 	mesh.radius = radius
@@ -324,6 +426,7 @@ func _sphere(radius: float, height: float) -> SphereMesh:
 	return mesh
 
 
+## A low-detail cylinder mesh.
 func _cylinder(top: float, bottom: float, height: float) -> CylinderMesh:
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = top
@@ -334,12 +437,14 @@ func _cylinder(top: float, bottom: float, height: float) -> CylinderMesh:
 	return mesh
 
 
+## A box mesh.
 func _box(size: Vector3) -> BoxMesh:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	return mesh
 
 
+## A prism (wedge) mesh.
 func _prism(size: Vector3) -> PrismMesh:
 	var mesh := PrismMesh.new()
 	mesh.size = size

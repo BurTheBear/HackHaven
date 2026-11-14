@@ -24,11 +24,13 @@ var _items: Array[Button] = []
 var _continue: Button
 var _hard: Button
 var _chal: Button
+## Challenge modes in the order the CHALLENGE item cycles through them.
 const CHALLENGES := ["", "no_ping", "one_pebble", "darkness"]
 var _quit: Button
 var _best: Label
 var _ring_age := 99.0
 var _ping_timer := 1.2
+## Small rings next to a focused item: each is {"pos": Vector2, "age": float}.
 var _hover_rings: Array = []
 var _ghost_timer := 12.0
 var _ghost_t := -1.0
@@ -39,6 +41,7 @@ var _breath: AudioStreamPlayer
 var _last_focus: Control
 
 
+## Builds the title, the menu items, the footer texts and the ambience players.
 func _ready() -> void:
 	Style.full_rect(self)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -94,17 +97,20 @@ func _ready() -> void:
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(list)
 
-	var begin := _add_item(list, "BEGIN", func(): begin_pressed.emit())
-	_continue = _add_item(list, "CONTINUE", func(): continue_pressed.emit())
-	_add_item(list, "SETTINGS", func(): settings_pressed.emit())
-	_add_item(list, "CREDITS", func(): credits_pressed.emit())
+	_add_item(list, "BEGIN", _emit_begin)
+	_continue = _add_item(list, "CONTINUE", _emit_continue)
+	_add_item(list, "SETTINGS", _emit_settings)
+	_add_item(list, "CREDITS", _emit_credits)
 	_hard = _add_item(list, "", _toggle_hard)
 	_hard.add_theme_font_size_override("font_size", 20)
 	_chal = _add_item(list, "", _cycle_challenge)
 	_chal.add_theme_font_size_override("font_size", 20)
-	_quit = _add_item(list, "QUIT", func(): quit_pressed.emit())
-	_quit.visible = not OS.has_feature("web")
-	begin.text = "BEGIN"
+	_quit = _add_item(list, "QUIT", _emit_quit)
+	# There is no "quit" in a browser tab.
+	if OS.has_feature("web"):
+		_quit.visible = false
+	else:
+		_quit.visible = true
 
 	_best = Style.label("", 18, Style.GOLD)
 	_best.anchor_left = 0.0
@@ -150,6 +156,28 @@ func _ready() -> void:
 	refresh()
 
 
+## What each menu item does when chosen.
+func _emit_begin() -> void:
+	begin_pressed.emit()
+
+
+func _emit_continue() -> void:
+	continue_pressed.emit()
+
+
+func _emit_settings() -> void:
+	settings_pressed.emit()
+
+
+func _emit_credits() -> void:
+	credits_pressed.emit()
+
+
+func _emit_quit() -> void:
+	quit_pressed.emit()
+
+
+## Adds one menu item. `action` is the function to run when it is chosen.
 func _add_item(list: VBoxContainer, text: String, action: Callable) -> Button:
 	var b := Style.chalk_button(text, 30)
 	b.custom_minimum_size = Vector2(0, 46)
@@ -164,8 +192,12 @@ func _add_item(list: VBoxContainer, text: String, action: Callable) -> Button:
 ## Re-reads save / best time / hard mode, and fixes the focus chain.
 func refresh() -> void:
 	_continue.visible = Game.has_save()
-	_hard.text = "HARD MODE: %s" % ("ON" if Settings.hard_mode else "OFF")
-	var unlocked: bool = Game.best_time >= 0.0
+	if Settings.hard_mode:
+		_hard.text = "HARD MODE: ON"
+	else:
+		_hard.text = "HARD MODE: OFF"
+	# Challenges unlock after the first finished run.
+	var unlocked: bool = (Game.best_time >= 0.0)
 	_chal.visible = unlocked
 	if not unlocked:
 		Game.challenge = ""
@@ -196,55 +228,91 @@ func activate() -> void:
 func deactivate() -> void:
 	active = false
 	visible = false
-	var tw := create_tween().set_parallel(true)
+	# Fade both sounds out together, then stop them.
+	var tw := create_tween()
+	tw.set_parallel(true)
 	tw.tween_property(_drone, "volume_db", -60.0, 1.5)
 	tw.tween_property(_breath, "volume_db", -60.0, 1.5)
 	tw.chain().tween_callback(_stop_ambience)
 
 
+## Stops the menu ambience sounds.
 func _stop_ambience() -> void:
 	_drone.stop()
 	_breath.stop()
 
 
+## Click sound, then the item's action.
 func _on_item_pressed(action: Callable) -> void:
 	Sfx.play("ui_click", -6.0)
 	action.call()
 
 
+## Focuses the last focused item, or the first visible one.
 func focus_first() -> void:
-	if _last_focus != null and _last_focus.visible and is_instance_valid(_last_focus):
-		_last_focus.grab_focus()
-		return
+	if _last_focus != null:
+		if _last_focus.visible and is_instance_valid(_last_focus):
+			_last_focus.grab_focus()
+			return
 	for b in _items:
 		if b.visible:
 			b.grab_focus()
 			return
 
 
+## HARD MODE item: switches hard mode on / off.
 func _toggle_hard() -> void:
 	Settings.hard_mode = not Settings.hard_mode
 	Settings.save()
 	refresh()
 
 
+## CHALLENGE item: moves to the next challenge mode (wrapping around).
 func _cycle_challenge() -> void:
-	var i := CHALLENGES.find(Game.challenge)
-	Game.challenge = CHALLENGES[(i + 1) % CHALLENGES.size()]
+	var index: int = CHALLENGES.find(Game.challenge)
+	var next_index: int = index + 1
+	if next_index >= CHALLENGES.size():
+		next_index = 0
+	Game.challenge = CHALLENGES[next_index]
 	refresh()
 
 
+## An item got focus: hover sound and a small ring left of its text.
 func _on_item_focus(b: Button) -> void:
 	_last_focus = b
 	if not visible:
 		return
 	Sfx.play("ui_hover", -10.0)
-	var c := b.get_global_rect().get_center() - get_global_rect().position
-	var font := b.get_theme_font("font")
-	var w := font.get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, b.get_theme_font_size("font_size")).x
-	_hover_rings.append({"pos": c - Vector2(w * 0.5 + 26.0, 0.0), "age": 0.0})
+	var item_center: Vector2 = _local_center(b)
+	var font: Font = b.get_theme_font("font")
+	var font_size: int = b.get_theme_font_size("font_size")
+	var text_size: Vector2 = font.get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
+	var text_width: float = text_size.x
+	var ring_pos: Vector2 = item_center - Vector2(text_width * 0.5 + 26.0, 0.0)
+	_hover_rings.append({"pos": ring_pos, "age": 0.0})
 
 
+## Center of a control, in this menu's own coordinates.
+func _local_center(control: Control) -> Vector2:
+	var control_center: Vector2 = control.get_global_rect().get_center()
+	return control_center - get_global_rect().position
+
+
+## How brightly the echo ring lights a point: 1 right on the ring, fading to 0
+## further away. `width` is how wide the bright band is (in pixels).
+func _ring_glow(point: Vector2, width: float) -> float:
+	var center: Vector2 = size * 0.5
+	var distance_from_ring: float = point.distance_to(center) - _ring_radius()
+	var x: float = distance_from_ring / width
+	return exp(-(x * x))
+
+
+## How strong the ring still is (1 just after a ping, 0 after 3 seconds).
+func _ring_fade() -> float:
+	return clampf(1.0 - _ring_age / 3.0, 0.0, 1.0)
+
+
+## Every frame: pings, the hover rings, item brightness and the background Listener.
 func _process(delta: float) -> void:
 	if not active:
 		return
@@ -253,38 +321,57 @@ func _process(delta: float) -> void:
 		_ping_timer = PING_EVERY
 		_ping()
 	_ring_age += delta
-	for r in _hover_rings:
-		r["age"] = float(r["age"]) + delta
-	_hover_rings = _hover_rings.filter(func(r): return float(r["age"]) < 0.6)
+	_update_hover_rings(delta)
+	_update_brightness()
+	_update_ghost(delta)
+	_fx.queue_redraw()
 
-	# Items and the title brighten as the ring sweeps over them.
-	var center := size * 0.5
-	var radius := _ring_radius()
-	var fade := clampf(1.0 - _ring_age / 3.0, 0.0, 1.0)
+
+## Ages the small hover rings and removes the old ones (after 0.6 s).
+func _update_hover_rings(delta: float) -> void:
+	var still_alive: Array = []
+	for ring in _hover_rings:
+		var age: float = float(ring["age"]) + delta
+		ring["age"] = age
+		if age < 0.6:
+			still_alive.append(ring)
+	_hover_rings = still_alive
+
+
+## Items and the title brighten as the ring sweeps over them.
+func _update_brightness() -> void:
+	var fade: float = _ring_fade()
 	for b in _items:
-		var c := b.get_global_rect().get_center() - get_global_rect().position
-		var band := exp(-pow((c.distance_to(center) - radius) / 70.0, 2.0)) * fade
-		var base := 1.0 if b.has_focus() else 0.85
-		b.modulate = Color(base + band * 0.9, base + band * 0.9, base + band * 0.9, 1.0)
-	var tc := _title.get_global_rect().get_center() - get_global_rect().position
-	var tb := exp(-pow((tc.distance_to(center) - radius) / 120.0, 2.0)) * fade
-	_title.modulate = Color(1.0, 1.0, 1.0, 0.45 + 0.55 * clampf(tb * 1.4 + fade * 0.35, 0.0, 1.0))
+		var band: float = _ring_glow(_local_center(b), 70.0) * fade
+		var base: float = 0.85
+		if b.has_focus():
+			base = 1.0
+		var bright: float = base + band * 0.9
+		b.modulate = Color(bright, bright, bright, 1.0)
+	var title_band: float = _ring_glow(_local_center(_title), 120.0) * fade
+	var title_light: float = clampf(title_band * 1.4 + fade * 0.35, 0.0, 1.0)
+	_title.modulate = Color(1.0, 1.0, 1.0, 0.45 + 0.55 * title_light)
 
-	# The Listener behind the text.
+
+## The Listener behind the text: waits a while, then walks across in 22 s.
+func _update_ghost(delta: float) -> void:
 	if _ghost_t < 0.0:
 		_ghost_timer -= delta
 		if _ghost_timer <= 0.0:
 			_ghost_t = 0.0
 			_ghost_y = randf_range(0.62, 0.8)
-			_ghost_dir = 1.0 if randf() < 0.5 else -1.0
+			if randf() < 0.5:
+				_ghost_dir = 1.0
+			else:
+				_ghost_dir = -1.0
 	else:
 		_ghost_t += delta / 22.0
 		if _ghost_t >= 1.0:
 			_ghost_t = -1.0
 			_ghost_timer = randf_range(16.0, 34.0)
-	_fx.queue_redraw()
 
 
+## A silent echo from the camera, so the cave flickers in behind the menu.
 func _ping() -> void:
 	_ring_age = 0.0
 	var cam := get_viewport().get_camera_3d()
@@ -293,36 +380,49 @@ func _ping() -> void:
 	Sfx.play("ping", -20.0, &"Cave", 0.92)
 
 
+## Current radius of the big 2D ring (it grows over RING_TIME seconds).
 func _ring_radius() -> float:
 	return _ring_age / RING_TIME * size.length() * 0.5
 
 
+## Draws the big ring, the hover rings and the Listener on the effects layer.
 func _draw_fx() -> void:
-	var center := size * 0.5
-	if _ring_age < RING_TIME * 1.6:
-		var r := _ring_radius()
-		var a := clampf(1.0 - _ring_age / (RING_TIME * 1.6), 0.0, 1.0)
-		_fx.draw_arc(center, r, 0.0, TAU, 96, Color(0.24, 0.96, 1.0, 0.07 * a), 18.0, true)
-		_fx.draw_arc(center, r, 0.0, TAU, 96, Color(0.8, 1.0, 1.0, 0.35 * a), 1.5, true)
-	for h in _hover_rings:
-		var age: float = h["age"]
-		var t := age / 0.6
-		_fx.draw_arc(h["pos"], 4.0 + t * 18.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0, 0.7 * (1.0 - t)), 1.5, true)
+	var center: Vector2 = size * 0.5
+	var ring_life: float = RING_TIME * 1.6
+	if _ring_age < ring_life:
+		var radius: float = _ring_radius()
+		var alpha: float = clampf(1.0 - _ring_age / ring_life, 0.0, 1.0)
+		var glow_color := Color(0.24, 0.96, 1.0, 0.07 * alpha)
+		var line_color := Color(0.8, 1.0, 1.0, 0.35 * alpha)
+		_fx.draw_arc(center, radius, 0.0, TAU, 96, glow_color, 18.0, true)
+		_fx.draw_arc(center, radius, 0.0, TAU, 96, line_color, 1.5, true)
+	for ring in _hover_rings:
+		var age: float = ring["age"]
+		var t: float = age / 0.6
+		var ring_pos: Vector2 = ring["pos"]
+		var ring_radius: float = 4.0 + t * 18.0
+		var ring_color := Color(1.0, 1.0, 1.0, 0.7 * (1.0 - t))
+		_fx.draw_arc(ring_pos, ring_radius, 0.0, TAU, 32, ring_color, 1.5, true)
 	if _ghost_t >= 0.0:
 		_draw_listener(center)
 
 
 ## A thin, hunched, eyeless thing with huge ear-fins. Barely there, and a
 ## little clearer when the echo ring passes over it.
-func _draw_listener(center: Vector2) -> void:
-	var t := _ghost_t
-	var x := lerpf(-0.1, 1.1, t) if _ghost_dir > 0.0 else lerpf(1.1, -0.1, t)
-	var h := size.y * 0.38
+func _draw_listener(_center: Vector2) -> void:
+	var t: float = _ghost_t
+	# Screen x from 0 to 1 (a bit past each edge), left-to-right or right-to-left.
+	var x: float = 0.0
+	if _ghost_dir > 0.0:
+		x = lerpf(-0.1, 1.1, t)
+	else:
+		x = lerpf(1.1, -0.1, t)
+	var h: float = size.y * 0.38
 	var foot := Vector2(size.x * x, size.y * _ghost_y + h * 0.5)
-	var bob := sin(t * 60.0) * h * 0.01
-	var radius := _ring_radius()
-	var band := exp(-pow((foot.distance_to(center) - radius) / 120.0, 2.0)) * clampf(1.0 - _ring_age / 3.0, 0.0, 1.0)
-	var alpha := (0.035 + 0.16 * band) * sin(t * PI)
+	var bob: float = sin(t * 60.0) * h * 0.01
+	var band: float = _ring_glow(foot, 120.0) * _ring_fade()
+	# Fades in and out over the walk, and shows more when the ring passes.
+	var alpha: float = (0.035 + 0.16 * band) * sin(t * PI)
 	var col := Color(1.0, 0.23, 0.31, alpha)
 	var lean := 0.18 * _ghost_dir
 	var hip := foot + Vector2(0.0, -h * 0.42 + bob)
@@ -344,11 +444,20 @@ func _draw_listener(center: Vector2) -> void:
 	draw_line_on(neck, neck + Vector2(-h * 0.08 - sway, h * 0.58), col, h * 0.025)
 	# Head and ear-fins.
 	_fx.draw_circle(head, h * 0.05, col)
-	_fx.draw_colored_polygon(PackedVector2Array([
-		head + Vector2(-h * 0.02, -h * 0.03), head + Vector2(-h * 0.16, -h * 0.14), head + Vector2(-h * 0.03, h * 0.02)]), col)
-	_fx.draw_colored_polygon(PackedVector2Array([
-		head + Vector2(h * 0.02, -h * 0.03), head + Vector2(h * 0.16, -h * 0.14), head + Vector2(h * 0.03, h * 0.02)]), col)
+	var left_fin := PackedVector2Array([
+		head + Vector2(-h * 0.02, -h * 0.03),
+		head + Vector2(-h * 0.16, -h * 0.14),
+		head + Vector2(-h * 0.03, h * 0.02),
+	])
+	_fx.draw_colored_polygon(left_fin, col)
+	var right_fin := PackedVector2Array([
+		head + Vector2(h * 0.02, -h * 0.03),
+		head + Vector2(h * 0.16, -h * 0.14),
+		head + Vector2(h * 0.03, h * 0.02),
+	])
+	_fx.draw_colored_polygon(right_fin, col)
 
 
+## Draws a smooth line on the effects layer.
 func draw_line_on(a: Vector2, b: Vector2, col: Color, width: float) -> void:
 	_fx.draw_line(a, b, col, width, true)

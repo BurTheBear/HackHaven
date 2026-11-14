@@ -39,6 +39,7 @@ var _locked_by_state := false
 var _sub_tween: Tween
 
 
+## Called by main.gd: builds the letterbox bars, subtitle, skip hint and camera.
 func setup(player: Node3D, ui: Node) -> void:
 	_player = player
 	_ui = ui
@@ -100,6 +101,7 @@ func setup(player: Node3D, ui: Node) -> void:
 	set_process_input(false)
 
 
+## Makes one black letterbox bar (top or bottom), starting at zero height.
 func _make_bar(top: bool) -> ColorRect:
 	var bar := ColorRect.new()
 	bar.color = Color.BLACK
@@ -122,6 +124,7 @@ func _make_bar(top: bool) -> ColorRect:
 	return bar
 
 
+## Draws the hold-to-skip progress ring.
 func _draw_ring() -> void:
 	var c := Vector2(15.0, 15.0)
 	_ring.draw_arc(c, 11.0, 0.0, TAU, 32, Color(1, 1, 1, 0.25), 2.0)
@@ -132,6 +135,7 @@ func _draw_ring() -> void:
 
 # ------------------------------------------------------------------ Frame loop
 
+## Tracks whether any key / mouse button / pad button is being held (to skip).
 func _input(event: InputEvent) -> void:
 	if not playing:
 		return
@@ -157,6 +161,7 @@ func _input(event: InputEvent) -> void:
 		_held = false
 
 
+## Per-frame: skip-hold progress, overlay fade and the cutscene camera.
 func _process(delta: float) -> void:
 	if not playing:
 		return
@@ -169,13 +174,23 @@ func _process(delta: float) -> void:
 	_ring.queue_redraw()
 	_overlay.modulate.a = overlay_alpha
 	if _cam_active:
-		_cam.global_transform = Transform3D(Basis.from_euler(Vector3(cam_pitch, cam_yaw, cam_roll), EULER_ORDER_YXZ), cam_pos)
-		_cam.fov = cam_fov
-		var s := shake_amount * (0.2 if Settings.reduce_shake else 1.0)
-		_cam.h_offset = randf_range(-s, s)
-		_cam.v_offset = randf_range(-s, s)
+		_update_camera()
 
 
+## Moves the cutscene camera to cam_pos / angles / fov, with shake.
+func _update_camera() -> void:
+	var angles := Vector3(cam_pitch, cam_yaw, cam_roll)
+	var rotation_basis := Basis.from_euler(angles, EULER_ORDER_YXZ)
+	_cam.global_transform = Transform3D(rotation_basis, cam_pos)
+	_cam.fov = cam_fov
+	var s := shake_amount
+	if Settings.reduce_shake:
+		s = shake_amount * 0.2
+	_cam.h_offset = randf_range(-s, s)
+	_cam.v_offset = randf_range(-s, s)
+
+
+## Skips the rest of the cutscene: stops every running animation.
 func _do_skip() -> void:
 	_skip = true
 	for t in _tweens:
@@ -191,6 +206,7 @@ func _do_skip() -> void:
 
 # ------------------------------------------------------------------ Helpers
 
+## Creates a tween that will be stopped if the cutscene is skipped.
 func _tw() -> Tween:
 	var t := create_tween()
 	_tweens.append(t)
@@ -205,18 +221,21 @@ func _wait(seconds: float) -> void:
 		elapsed += get_process_delta_time()
 
 
+## Plays a sound (unless skipping).
 func _sfx(sound: String, volume_db: float = 0.0, pitch: float = 1.0) -> void:
 	if _skip:
 		return
 	Sfx.play(sound, volume_db, &"Master", pitch)
 
 
+## Shows an echo ping at `pos` (unless skipping).
 func _ping(pos: Vector3, radius: float) -> void:
 	if _skip:
 		return
 	Echo.emit_ping(pos, radius, false)
 
 
+## Types a subtitle line onto the screen.
 func _say(text: String) -> void:
 	if _skip:
 		return
@@ -228,24 +247,45 @@ func _say(text: String) -> void:
 	_sub_tween.tween_property(_subtitle, "visible_ratio", 1.0, maxf(0.4, text.length() * 0.045))
 
 
+## Hides the subtitle line.
 func _clear_say() -> void:
 	if _sub_tween != null and _sub_tween.is_valid():
 		_sub_tween.kill()
 	_subtitle.visible_ratio = 0.0
 
 
+## Adds one property animation to tween `t` with the given curve.
+func _eased(t: Tween, property: String, value: Variant, seconds: float, trans: Tween.TransitionType, ease_type: Tween.EaseType) -> void:
+	var step := t.tween_property(self, property, value, seconds)
+	step.set_trans(trans)
+	step.set_ease(ease_type)
+
+
+## Adds one property animation that starts and ends gently (sine in-out).
+func _smooth(t: Tween, property: String, value: Variant, seconds: float) -> void:
+	_eased(t, property, value, seconds, Tween.TRANS_SINE, Tween.EASE_IN_OUT)
+
+
+## Slides the black letterbox bars in (open) or out.
 func _bars(open: bool, seconds: float) -> void:
-	var h := BAR_HEIGHT if open else 0.0
+	var h := 0.0
+	if open:
+		h = BAR_HEIGHT
 	if _skip or seconds <= 0.0:
 		_top_bar.offset_bottom = h
 		_bottom_bar.offset_top = -h
 		return
 	var t := _tw()
 	t.set_parallel(true)
-	t.tween_property(_top_bar, "offset_bottom", h, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	t.tween_property(_bottom_bar, "offset_top", -h, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var top_step := t.tween_property(_top_bar, "offset_bottom", h, seconds)
+	top_step.set_trans(Tween.TRANS_SINE)
+	top_step.set_ease(Tween.EASE_IN_OUT)
+	var bottom_step := t.tween_property(_bottom_bar, "offset_top", -h, seconds)
+	bottom_step.set_trans(Tween.TRANS_SINE)
+	bottom_step.set_ease(Tween.EASE_IN_OUT)
 
 
+## Fades the full-screen overlay to `to_alpha`.
 func _fade(to_alpha: float, seconds: float) -> void:
 	if _skip:
 		overlay_alpha = to_alpha
@@ -253,10 +293,7 @@ func _fade(to_alpha: float, seconds: float) -> void:
 	_tw().tween_property(self, "overlay_alpha", to_alpha, seconds)
 
 
-func _set_overlay_color(c: Color) -> void:
-	_overlay.color = c
-
-
+## Yaw (x) and pitch (y) for a camera at `from` to look at `to`.
 func _angles_to(from: Vector3, to: Vector3) -> Vector2:
 	var d := to - from
 	var yaw := atan2(-d.x, -d.z)
@@ -264,6 +301,7 @@ func _angles_to(from: Vector3, to: Vector3) -> Vector2:
 	return Vector2(yaw, pitch)
 
 
+## Finds a "cutscene_marker" node by name, or null.
 func _marker(marker_name: String) -> Node3D:
 	for n in get_tree().get_nodes_in_group("cutscene_marker"):
 		if n.name == marker_name and n is Node3D:
@@ -271,6 +309,7 @@ func _marker(marker_name: String) -> Node3D:
 	return null
 
 
+## Common start for every cutscene: resets state and takes control from the player.
 func _begin() -> void:
 	playing = true
 	_skip = false
@@ -291,6 +330,7 @@ func _begin() -> void:
 		Game.set("state", Game.State.CUTSCENE)
 
 
+## Switches to the cutscene camera, starting where the player camera is.
 func _use_camera() -> void:
 	var pc: Camera3D = _player.get("camera") as Camera3D
 	if pc != null:
@@ -300,6 +340,7 @@ func _use_camera() -> void:
 	_cam.make_current()
 
 
+## Gives the view back to the player camera.
 func _release_camera() -> void:
 	_cam_active = false
 	_cam.h_offset = 0.0
@@ -342,6 +383,7 @@ func _end(cutscene_name: String, restore_control: bool) -> void:
 	finished.emit(cutscene_name)
 
 
+## Shows the skip hint, ring and subtitle (the ending hides them).
 func _prepare_ui_for_run() -> void:
 	_hint.visible = true
 	_ring.visible = true
@@ -350,6 +392,7 @@ func _prepare_ui_for_run() -> void:
 
 # ------------------------------------------------------------------ 1. Intro (~20 s)
 
+## The rope snaps and you fall into the cave.
 func play_intro() -> void:
 	if playing or _player == null:
 		return
@@ -376,8 +419,8 @@ func play_intro() -> void:
 	if not _skip:
 		var walk := _tw()
 		walk.set_parallel(true)
-		walk.tween_property(self, "cam_pos", start - Vector3(0.0, 1.8, 0.0), 8.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		walk.tween_property(self, "cam_pitch", -1.25, 8.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_smooth(walk, "cam_pos", start - Vector3(0.0, 1.8, 0.0), 8.0)
+		_smooth(walk, "cam_pitch", -1.25, 8.0)
 		walk.tween_property(self, "shake_amount", 0.003, 8.0)
 	await _wait(1.0)
 	_sfx("rope_creak", -8.0)
@@ -399,8 +442,8 @@ func play_intro() -> void:
 	if not _skip:
 		var fall := _tw()
 		fall.set_parallel(true)
-		fall.tween_property(self, "cam_pos", eye, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		fall.tween_property(self, "cam_fov", 112.0, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		_eased(fall, "cam_pos", eye, 1.2, Tween.TRANS_QUAD, Tween.EASE_IN)
+		_eased(fall, "cam_fov", 112.0, 1.2, Tween.TRANS_QUAD, Tween.EASE_IN)
 		fall.tween_property(self, "cam_pitch", -0.5, 1.2)
 		fall.tween_property(self, "shake_amount", 0.07, 1.2)
 	await _wait(1.2)
@@ -440,9 +483,9 @@ func play_intro() -> void:
 	if not _skip:
 		var rise := _tw()
 		rise.set_parallel(true)
-		rise.tween_property(self, "cam_pos", eye, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		rise.tween_property(self, "cam_roll", 0.0, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		rise.tween_property(self, "cam_pitch", 0.0, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_smooth(rise, "cam_pos", eye, 4.5)
+		_smooth(rise, "cam_roll", 0.0, 4.5)
+		_smooth(rise, "cam_pitch", 0.0, 4.5)
 	await _wait(1.0)
 	_say("The rope snapped. The lantern's gone.")
 	await _wait(3.0)
@@ -454,6 +497,7 @@ func play_intro() -> void:
 
 # ------------------------------------------------------------------ 2. Hall reveal (~8 s)
 
+## The camera turns to show the nearest Listener.
 func play_hall_reveal() -> void:
 	if playing or _player == null:
 		return
@@ -461,22 +505,16 @@ func play_hall_reveal() -> void:
 	_begin()
 	var head: Node3D = _player.get("head") as Node3D
 	var orig_yaw: float = _player.global_rotation.y
-	var orig_pitch: float = head.rotation.x if head != null else 0.0
-	var orig_pos: Vector3 = head.global_position if head != null else _player.global_position + Vector3(0.0, EYE_HEIGHT, 0.0)
+	var orig_pitch := 0.0
+	var orig_pos: Vector3 = _player.global_position + Vector3(0.0, EYE_HEIGHT, 0.0)
+	if head != null:
+		orig_pitch = head.rotation.x
+		orig_pos = head.global_position
 	var orig_fov := 75.0
 	var pc: Camera3D = _player.get("camera") as Camera3D
 	if pc != null:
 		orig_fov = pc.fov
-	var target: Node3D = null
-	var best := INF
-	for n in get_tree().get_nodes_in_group("listener"):
-		var n3 := n as Node3D
-		if n3 == null:
-			continue
-		var d: float = n3.global_position.distance_squared_to(_player.global_position)
-		if d < best:
-			best = d
-			target = n3
+	var target := _closest_listener()
 	_use_camera()
 	cam_pos = orig_pos
 	cam_yaw = orig_yaw
@@ -495,8 +533,8 @@ func play_hall_reveal() -> void:
 		if not _skip:
 			var turn := _tw()
 			turn.set_parallel(true)
-			turn.tween_property(self, "cam_yaw", yaw_to, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			turn.tween_property(self, "cam_pitch", pitch_to, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			_smooth(turn, "cam_yaw", yaw_to, 2.2)
+			_smooth(turn, "cam_pitch", pitch_to, 2.2)
 		await _wait(2.4)
 		_ping(focus, 8.0)
 		_sfx("sting", -10.0)
@@ -504,8 +542,8 @@ func play_hall_reveal() -> void:
 		if not _skip:
 			var push := _tw()
 			push.set_parallel(true)
-			push.tween_property(self, "cam_fov", orig_fov * 0.68, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			push.tween_property(self, "cam_pos", push_to, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			_smooth(push, "cam_fov", orig_fov * 0.68, 4.5)
+			_smooth(push, "cam_pos", push_to, 4.5)
 		await _wait(1.0)
 		_say("...it hasn't heard you. Yet.")
 		await _wait(2.6)
@@ -514,8 +552,8 @@ func play_hall_reveal() -> void:
 		if not _skip:
 			var back := _tw()
 			back.set_parallel(true)
-			back.tween_property(self, "cam_yaw", orig_yaw, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			back.tween_property(self, "cam_pitch", orig_pitch, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			_smooth(back, "cam_yaw", orig_yaw, 1.2)
+			_smooth(back, "cam_pitch", orig_pitch, 1.2)
 			back.tween_property(self, "cam_fov", orig_fov, 1.2)
 			back.tween_property(self, "cam_pos", orig_pos, 1.2)
 		await _wait(1.2)
@@ -524,8 +562,37 @@ func play_hall_reveal() -> void:
 	await _end("hall_reveal", true)
 
 
+## The Listener nearest to the player, or null if there are none.
+func _closest_listener() -> Node3D:
+	var target: Node3D = null
+	var best := INF
+	for n in get_tree().get_nodes_in_group("listener"):
+		var n3 := n as Node3D
+		if n3 == null:
+			continue
+		var d: float = n3.global_position.distance_squared_to(_player.global_position)
+		if d < best:
+			best = d
+			target = n3
+	return target
+
+
 # ------------------------------------------------------------------ 3. Ending (~25 s)
 
+## Where the ending camera rises to: the ShaftTop marker, else 12 m above
+## the exit, else 12 m above `from_pos`.
+func _find_shaft_top(from_pos: Vector3) -> Vector3:
+	var shaft := _marker("ShaftTop")
+	if shaft != null:
+		return shaft.global_position
+	var exits := get_tree().get_nodes_in_group("exit")
+	if exits.size() > 0 and exits[0] is Node3D:
+		var exit_node: Node3D = exits[0]
+		return exit_node.global_position + Vector3(0.0, 12.0, 0.0)
+	return from_pos + Vector3(0.0, 12.0, 0.0)
+
+
+## You climb out into daylight, then something answers from below.
 func play_ending() -> void:
 	if playing or _player == null:
 		return
@@ -535,20 +602,16 @@ func play_ending() -> void:
 	var from_pos: Vector3 = _player.global_position + Vector3(0.0, EYE_HEIGHT, 0.0)
 	if head != null:
 		from_pos = head.global_position
-	var top := from_pos + Vector3(0.0, 12.0, 0.0)
-	var shaft := _marker("ShaftTop")
-	if shaft != null:
-		top = shaft.global_position
-	else:
-		var exits := get_tree().get_nodes_in_group("exit")
-		if exits.size() > 0 and exits[0] is Node3D:
-			top = (exits[0] as Node3D).global_position + Vector3(0.0, 12.0, 0.0)
+	var top := _find_shaft_top(from_pos)
 	_use_camera()
 	cam_pos = from_pos
 	cam_yaw = _player.global_rotation.y
 	cam_pitch = 0.0
 	cam_roll = 0.0
-	var warm_peak := 0.55 if Settings.no_flash else 0.95
+	# How bright the warm daylight gets (dimmer with flashes turned off).
+	var warm_peak := 0.95
+	if Settings.no_flash:
+		warm_peak = 0.55
 	_overlay.color = Color(1.0, 0.93, 0.78)
 	overlay_alpha = 0.0
 	_bars(true, 0.9)
@@ -558,14 +621,14 @@ func play_ending() -> void:
 	if not _skip:
 		var rise := _tw()
 		rise.set_parallel(true)
-		rise.tween_property(self, "cam_pos", top, 7.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		rise.tween_property(self, "cam_pitch", 1.25, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_smooth(rise, "cam_pos", top, 7.0)
+		_smooth(rise, "cam_pitch", 1.25, 3.0)
 		rise.tween_property(self, "cam_fov", 85.0, 7.0)
 		rise.tween_property(self, "shake_amount", 0.004, 7.0)
 	await _wait(3.8)
 	if not _skip:
 		var glow := _tw()
-		glow.tween_property(self, "overlay_alpha", warm_peak, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		_eased(glow, "overlay_alpha", warm_peak, 3.0, Tween.TRANS_SINE, Tween.EASE_IN)
 	await _wait(3.4)
 	cam_pos = top
 	shake_amount = 0.0
@@ -576,7 +639,7 @@ func play_ending() -> void:
 	if not _skip:
 		var look := _tw()
 		look.set_parallel(true)
-		look.tween_property(self, "cam_pitch", -1.0, 3.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_smooth(look, "cam_pitch", -1.0, 3.2)
 		look.tween_property(self, "cam_fov", 70.0, 3.2)
 	await _wait(2.0)
 	_say("You found your way back.")
@@ -587,7 +650,7 @@ func play_ending() -> void:
 	if not _skip:
 		var sky := _tw()
 		sky.set_parallel(true)
-		sky.tween_property(self, "cam_pitch", 1.2, 3.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_smooth(sky, "cam_pitch", 1.2, 3.5)
 		sky.tween_property(self, "cam_fov", 80.0, 3.5)
 	await _wait(1.0)
 	_say("Daylight. Real, ordinary daylight.")
@@ -598,7 +661,7 @@ func play_ending() -> void:
 	_fade(0.0, 0.1)
 	if not _skip:
 		var dim := _tw()
-		dim.tween_property(self, "cam_pitch", -1.2, 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_smooth(dim, "cam_pitch", -1.2, 2.0)
 	_sfx("drag_step", -14.0, 0.7)
 	await _wait(1.2)
 	_sfx("hiss", -12.0, 0.6)
@@ -614,6 +677,7 @@ func play_ending() -> void:
 
 # ------------------------------------------------------------------ 4. Level 2 intro (~12 s)
 
+## The camera sinks down into level 2.
 func play_level2_intro() -> void:
 	if playing or _player == null:
 		return
@@ -637,8 +701,8 @@ func play_level2_intro() -> void:
 	if not _skip:
 		var sink := _tw()
 		sink.set_parallel(true)
-		sink.tween_property(self, "cam_pos", eye, 9.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		sink.tween_property(self, "cam_pitch", 0.0, 9.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_eased(sink, "cam_pos", eye, 9.0, Tween.TRANS_QUAD, Tween.EASE_OUT)
+		_smooth(sink, "cam_pitch", 0.0, 9.0)
 		sink.tween_property(self, "cam_fov", 75.0, 9.0)
 		sink.tween_property(self, "shake_amount", 0.003, 9.0)
 	await _wait(1.8)

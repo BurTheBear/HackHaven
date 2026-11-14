@@ -3,7 +3,7 @@ extends RefCounted
 ## names for prompts, key rebinding save/load. Use with
 ## `const Style = preload("res://scripts/ui_style.gd")`.
 
-const FONT: Font = preload("res://assets/fonts/Redaction50-Regular.ttf")   
+const FONT: Font = preload("res://assets/fonts/Redaction50-Regular.ttf")
 const CYAN := Color(0.239, 0.961, 1.0)
 const DIM_CYAN := Color(0.36, 0.62, 0.66, 0.85)
 const GOLD := Color(1.0, 0.784, 0.271)
@@ -33,29 +33,35 @@ static var using_pad := false
 static func spaced_font() -> FontVariation:
 	if _spaced == null:
 		_spaced = FontVariation.new()
-		_spaced.base_font = FONT                     # ← was ThemeDB.fallback_font
+		_spaced.base_font = FONT
 		_spaced.spacing_glyph = 3
-	return _spaced   
+	return _spaced
 
 
+## Makes a text label with the game font, a size, a color and a dark outline.
 static func label(text: String, size: int, color: Color = TEXT, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.horizontal_alignment = align
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.add_theme_font_override("font", FONT)          # ← add this line
+	l.add_theme_font_override("font", FONT)
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
-	l.add_theme_constant_override("outline_size", maxi(2, size / 8))
+	var outline: int = size / 8
+	if outline < 2:
+		outline = 2
+	l.add_theme_constant_override("outline_size", outline)
 	return l
 
 
+## Makes a control fill its whole parent. Returns the same control.
 static func full_rect(c: Control) -> Control:
 	c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	return c
 
 
+## A rounded, filled background box with padding.
 static func box(color: Color, radius: int = 4, pad: int = 12) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = color
@@ -84,9 +90,13 @@ static func chalk_button(text: String, size: int = 30) -> Button:
 	b.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
 	b.add_theme_color_override("font_outline_color", Color(0.24, 0.96, 1.0, 0.18))
 	b.add_theme_constant_override("outline_size", 6)
+	# No background box in any state.
 	var empty := StyleBoxEmpty.new()
-	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
-		b.add_theme_stylebox_override(st, empty)
+	b.add_theme_stylebox_override("normal", empty)
+	b.add_theme_stylebox_override("hover", empty)
+	b.add_theme_stylebox_override("pressed", empty)
+	b.add_theme_stylebox_override("hover_pressed", empty)
+	b.add_theme_stylebox_override("disabled", empty)
 	# Focus: a thin chalk underline instead of Godot's default box.
 	var focus := StyleBoxFlat.new()
 	focus.bg_color = Color(0.0, 0.0, 0.0, 0.0)
@@ -120,40 +130,57 @@ static func small_button(text: String, size: int = 20) -> Button:
 
 ## Chains focus neighbours top-to-bottom (wrapping) for keyboard / controller.
 static func link_focus(controls: Array) -> void:
+	# Only visible controls take part.
 	var list: Array[Control] = []
-	for c in controls:
-		var ctl := c as Control
-		if ctl != null and ctl.visible:
-			list.append(ctl)
-	var n := list.size()
-	for i in n:
-		var prev := list[(i - 1 + n) % n]
-		var next := list[(i + 1) % n]
-		list[i].focus_neighbor_top = list[i].get_path_to(prev)
-		list[i].focus_neighbor_bottom = list[i].get_path_to(next)
-		list[i].focus_previous = list[i].get_path_to(prev)
-		list[i].focus_next = list[i].get_path_to(next)
+	for item in controls:
+		if not (item is Control):
+			continue
+		var control: Control = item
+		if control.visible:
+			list.append(control)
+	var count: int = list.size()
+	for i in range(count):
+		# The one above the first is the last, and the one below the last is the first.
+		var prev_index: int = i - 1
+		if prev_index < 0:
+			prev_index = count - 1
+		var next_index: int = i + 1
+		if next_index >= count:
+			next_index = 0
+		var current: Control = list[i]
+		var prev: Control = list[prev_index]
+		var next: Control = list[next_index]
+		current.focus_neighbor_top = current.get_path_to(prev)
+		current.focus_neighbor_bottom = current.get_path_to(next)
+		current.focus_previous = current.get_path_to(prev)
+		current.focus_next = current.get_path_to(next)
 
 
+## "3:07", or "3:07.4" with tenths.
 static func format_time(seconds: float, tenths: bool = false) -> String:
-	var t := maxf(seconds, 0.0)
-	var m := int(t) / 60
-	var s := int(t) % 60
+	var t: float = maxf(seconds, 0.0)
+	var whole_seconds: int = int(t)
+	var minutes: int = whole_seconds / 60
+	var secs: int = whole_seconds % 60
 	if tenths:
-		return "%d:%02d.%d" % [m, s, int(t * 10.0) % 10]
-	return "%d:%02d" % [m, s]
+		var tenth: int = int(t * 10.0) % 10
+		return "%d:%02d.%d" % [minutes, secs, tenth]
+	return "%d:%02d" % [minutes, secs]
 
 
 # ---------------------------------------------------------------- Key names
 
+## Short readable name of one input event ("Q", "LMB", "A", "LT", ...).
 static func event_name(ev: InputEvent) -> String:
-	var key := ev as InputEventKey
-	if key:
-		var code: int = key.physical_keycode if key.physical_keycode != 0 else key.keycode
-		var s := OS.get_keycode_string(code as Key)
-		return s if s != "" else "?"
-	var mb := ev as InputEventMouseButton
-	if mb:
+	if ev is InputEventKey:
+		var key: InputEventKey = ev
+		var code: int = _key_code(key)
+		var text: String = OS.get_keycode_string(code as Key)
+		if text == "":
+			return "?"
+		return text
+	if ev is InputEventMouseButton:
+		var mb: InputEventMouseButton = ev
 		match mb.button_index:
 			MOUSE_BUTTON_LEFT: return "LMB"
 			MOUSE_BUTTON_RIGHT: return "RMB"
@@ -161,8 +188,8 @@ static func event_name(ev: InputEvent) -> String:
 			MOUSE_BUTTON_WHEEL_UP: return "Wheel up"
 			MOUSE_BUTTON_WHEEL_DOWN: return "Wheel down"
 		return "Mouse %d" % mb.button_index
-	var jb := ev as InputEventJoypadButton
-	if jb:
+	if ev is InputEventJoypadButton:
+		var jb: InputEventJoypadButton = ev
 		match jb.button_index:
 			JOY_BUTTON_A: return "A"
 			JOY_BUTTON_B: return "B"
@@ -175,8 +202,8 @@ static func event_name(ev: InputEvent) -> String:
 			JOY_BUTTON_LEFT_SHOULDER: return "LB"
 			JOY_BUTTON_RIGHT_SHOULDER: return "RB"
 		return "Pad %d" % jb.button_index
-	var jm := ev as InputEventJoypadMotion
-	if jm:
+	if ev is InputEventJoypadMotion:
+		var jm: InputEventJoypadMotion = ev
 		match jm.axis:
 			JOY_AXIS_TRIGGER_LEFT: return "LT"
 			JOY_AXIS_TRIGGER_RIGHT: return "RT"
@@ -190,12 +217,12 @@ static func key_name(action: String) -> String:
 		return ""
 	var names := PackedStringArray()
 	for ev in InputMap.action_get_events(action):
-		var pad := ev is InputEventJoypadButton or ev is InputEventJoypadMotion
-		if pad != using_pad:
+		# Only show buttons for the device the player is using.
+		if _is_pad(ev) != using_pad:
 			continue
-		var n := event_name(ev)
-		if not names.has(n):
-			names.append(n)
+		var event_text: String = event_name(ev)
+		if not names.has(event_text):
+			names.append(event_text)
 		if names.size() >= 2:
 			break
 	if names.is_empty():
@@ -205,20 +232,34 @@ static func key_name(action: String) -> String:
 
 # ---------------------------------------------------------------- Rebinding
 
+## True for controller buttons and sticks.
 static func _is_pad(ev: InputEvent) -> bool:
-	return ev is InputEventJoypadButton or ev is InputEventJoypadMotion
+	if ev is InputEventJoypadButton:
+		return true
+	if ev is InputEventJoypadMotion:
+		return true
+	return false
 
 
+## The key's physical code, or its normal keycode if it has no physical one.
+static func _key_code(key: InputEventKey) -> int:
+	if key.physical_keycode != 0:
+		return int(key.physical_keycode)
+	return int(key.keycode)
+
+
+## Turns a key / mouse event into a small dictionary for the save file.
 static func _encode(ev: InputEvent) -> Dictionary:
-	var key := ev as InputEventKey
-	if key:
-		return {"type": "key", "code": int(key.physical_keycode if key.physical_keycode != 0 else key.keycode)}
-	var mb := ev as InputEventMouseButton
-	if mb:
+	if ev is InputEventKey:
+		var key: InputEventKey = ev
+		return {"type": "key", "code": _key_code(key)}
+	if ev is InputEventMouseButton:
+		var mb: InputEventMouseButton = ev
 		return {"type": "mouse", "button": int(mb.button_index)}
 	return {}
 
 
+## Turns a saved dictionary back into an input event (null if unknown).
 static func _decode(d: Dictionary) -> InputEvent:
 	match str(d.get("type", "")):
 		"key":
@@ -241,21 +282,27 @@ static func load_keys() -> void:
 	if cfg.load(KEYS_PATH) != OK:
 		return
 	for action in REBINDABLE:
-		if not InputMap.has_action(action) or not cfg.has_section_key("keys", action):
+		if not InputMap.has_action(action):
+			continue
+		if not cfg.has_section_key("keys", action):
 			continue
 		var list: Variant = cfg.get_value("keys", action, [])
 		if not (list is Array):
 			continue
+		# Remove the old keyboard / mouse bindings (controller ones stay).
 		for ev in InputMap.action_get_events(action):
 			if not _is_pad(ev):
 				InputMap.action_erase_event(action, ev)
-		for d in list:
-			if d is Dictionary:
-				var ev := _decode(d)
-				if ev != null:
-					InputMap.action_add_event(action, ev)
+		# Add the saved ones.
+		for saved in list:
+			if not (saved is Dictionary):
+				continue
+			var new_event: InputEvent = _decode(saved)
+			if new_event != null:
+				InputMap.action_add_event(action, new_event)
 
 
+## Writes every keyboard / mouse binding to user://keys.cfg.
 static func save_keys() -> void:
 	var cfg := ConfigFile.new()
 	for action in REBINDABLE:
@@ -263,10 +310,11 @@ static func save_keys() -> void:
 			continue
 		var list: Array = []
 		for ev in InputMap.action_get_events(action):
-			if not _is_pad(ev):
-				var d := _encode(ev)
-				if not d.is_empty():
-					list.append(d)
+			if _is_pad(ev):
+				continue
+			var data: Dictionary = _encode(ev)
+			if not data.is_empty():
+				list.append(data)
 		cfg.set_value("keys", action, list)
 	cfg.save(KEYS_PATH)
 
@@ -275,26 +323,29 @@ static func save_keys() -> void:
 static func rebind(action: String, ev: InputEvent) -> void:
 	if not InputMap.has_action(action):
 		return
-	var fresh := _decode(_encode(ev))
+	# Make a clean copy of the event (only the key or mouse button).
+	var encoded: Dictionary = _encode(ev)
+	var fresh: InputEvent = _decode(encoded)
 	if fresh == null:
 		return
-	var events := InputMap.action_get_events(action)
+	var events: Array[InputEvent] = InputMap.action_get_events(action)
 	var kept: Array[InputEvent] = []
-	var replaced := false
-	for e in events:
-		if not _is_pad(e) and not replaced:
+	var replaced: bool = false
+	for old_event in events:
+		if not replaced and not _is_pad(old_event):
 			replaced = true
 			kept.append(fresh)
 		else:
-			kept.append(e)
+			kept.append(old_event)
 	if not replaced:
 		kept.push_front(fresh)
 	InputMap.action_erase_events(action)
-	for e in kept:
-		InputMap.action_add_event(action, e)
+	for new_event in kept:
+		InputMap.action_add_event(action, new_event)
 	save_keys()
 
 
+## Back to the key bindings from project.godot.
 static func reset_keys() -> void:
 	InputMap.load_from_project_settings()
 	save_keys()

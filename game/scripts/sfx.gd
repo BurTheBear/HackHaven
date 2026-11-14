@@ -124,6 +124,7 @@ var _reverb_tween: Tween
 var _duck: AudioEffectAmplify
 
 
+## Creates the pools of reusable 2D players (12 for gameplay, 4 for UI).
 func _ready() -> void:
 	# Keeps building sounds, and playing UI clicks, while the game is paused.
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -162,21 +163,27 @@ func play(sound: String, volume_db: float = 0.0, bus: StringName = &"Master", pi
 	var pool: Array[AudioStreamPlayer] = _players
 	if sound.begins_with("ui_"):
 		pool = _ui_players
-	var p: AudioStreamPlayer = pool[0]
-	var longest := -1.0
-	for q in pool:
-		if not q.playing:
-			p = q
-			break
-		var at := q.get_playback_position()
-		if at > longest:
-			longest = at
-			p = q
+	var p := _pick_player(pool)
 	p.stream = _variant(sound)
 	p.volume_db = volume_db
 	p.bus = bus
 	p.pitch_scale = pitch
 	p.play()
+
+
+## A free player from the pool. If all are busy, the one that has been
+## playing the longest is reused.
+func _pick_player(pool: Array[AudioStreamPlayer]) -> AudioStreamPlayer:
+	var chosen: AudioStreamPlayer = pool[0]
+	var longest := -1.0
+	for q in pool:
+		if not q.playing:
+			return q
+		var at := q.get_playback_position()
+		if at > longest:
+			longest = at
+			chosen = q
+	return chosen
 
 
 ## Fire-and-forget positional sound in the current scene. Frees itself when
@@ -199,8 +206,6 @@ func play_3d(sound: String, pos: Vector3, volume_db: float = 0.0, bus: StringNam
 	return p
 
 
-## The stream for a sound name: a file from res://audio/ if there is one,
-## else synthesized (and cached).
 ## Sounds gameplay uses that have no synthesized version yet. Until a file
 ## res://audio/<name>.ogg/.wav/.mp3 exists, they reuse a similar sound.
 const STAND_INS := {
@@ -221,21 +226,20 @@ const STAND_INS := {
 }
 
 
+## The stream for a sound name: a file from res://audio/ if there is one,
+## else synthesized (and cached).
 func stream(sound: String) -> AudioStream:
 	if _cache.has(sound):
 		return _cache[sound]
 	var s: AudioStream = _load_file(sound)
 	if s == null and STAND_INS.has(sound):
 		# No recording yet: borrow a similar synthesized sound (pitched in play()).
-		s = stream(String(STAND_INS[sound]))
+		var stand_in: String = STAND_INS[sound]
+		s = stream(stand_in)
 	if s == null:
 		s = _build(sound)
 	_cache[sound] = s
 	return s
-
-
-func is_built(sound: String) -> bool:
-	return _cache.has(sound)
 
 
 ## Caption for an important sound (only when the player turned captions on).
@@ -244,7 +248,8 @@ func caption(text: String, world_position: Vector3, min_gap: float = 3.0) -> voi
 	if not Settings.captions:
 		return
 	var now := Time.get_ticks_msec() / 1000.0
-	if now - float(_caption_times.get(text, -1000.0)) < min_gap:
+	var last_shown := float(_caption_times.get(text, -1000.0))
+	if now - last_shown < min_gap:
 		return
 	_caption_times[text] = now
 	Game.caption.emit(text, world_position)
@@ -271,14 +276,21 @@ func set_reverb(preset: String, seconds: float = 2.0) -> void:
 	var reverb := _bus_effect("Cave", "AudioEffectReverb") as AudioEffectReverb
 	if reverb == null or not REVERB_PRESETS.has(preset):
 		return
-	var v: Array = REVERB_PRESETS[preset]
+	var values: Array = REVERB_PRESETS[preset]
+	var room_size: float = values[0]
+	var damping: float = values[1]
+	var wet: float = values[2]
+	var predelay: float = values[3]
+	var duration := maxf(seconds, 0.01)
 	if _reverb_tween:
 		_reverb_tween.kill()
-	_reverb_tween = create_tween().set_parallel(true)
-	_reverb_tween.tween_property(reverb, "room_size", v[0], maxf(seconds, 0.01))
-	_reverb_tween.tween_property(reverb, "damping", v[1], maxf(seconds, 0.01))
-	_reverb_tween.tween_property(reverb, "wet", v[2], maxf(seconds, 0.01))
-	_reverb_tween.tween_property(reverb, "predelay_msec", v[3], maxf(seconds, 0.01))
+	# All four settings glide at the same time.
+	_reverb_tween = create_tween()
+	_reverb_tween.set_parallel(true)
+	_reverb_tween.tween_property(reverb, "room_size", room_size, duration)
+	_reverb_tween.tween_property(reverb, "damping", damping, duration)
+	_reverb_tween.tween_property(reverb, "wet", wet, duration)
+	_reverb_tween.tween_property(reverb, "predelay_msec", predelay, duration)
 
 
 ## Gain of the whole Ambience bus (ducking). Doesn't touch the player's volume setting.
@@ -294,6 +306,7 @@ func set_ambience_gain(db: float) -> void:
 	_duck.volume_db = clampf(db, -80.0, 24.0)
 
 
+## Position of the first effect of class `cls` on a bus (-1 if none).
 func _effect_index(bus_idx: int, cls: String) -> int:
 	if bus_idx < 0:
 		return -1
@@ -304,6 +317,7 @@ func _effect_index(bus_idx: int, cls: String) -> int:
 	return -1
 
 
+## The first effect of class `cls` on the named bus (or null).
 func _bus_effect(bus_name: String, cls: String) -> AudioEffect:
 	var idx := AudioServer.get_bus_index(bus_name)
 	var i := _effect_index(idx, cls)
@@ -316,12 +330,15 @@ func _bus_effect(bus_name: String, cls: String) -> AudioEffect:
 func _variant(sound: String) -> AudioStream:
 	var files: Array = NAME_FILES.get(sound, [])
 	if files.size() > 1:
-		var s := _load_library_file(String(files[randi() % files.size()]), sound)
+		var pick := randi() % files.size()
+		var file: String = files[pick]
+		var s := _load_library_file(file, sound)
 		if s != null:
 			return s
 	return stream(sound)
 
 
+## Loads (and caches) one file from the Freesound folder.
 func _load_library_file(file: String, sound: String) -> AudioStream:
 	var path := FREESOUND_DIR + file
 	if _file_cache.has(path):
@@ -339,10 +356,12 @@ func _load_library_file(file: String, sound: String) -> AudioStream:
 	return res
 
 
+## A recording for this sound: first the Freesound library, then res://audio/.
 func _load_file(sound: String) -> AudioStream:
 	var files: Array = NAME_FILES.get(sound, [])
 	if not files.is_empty():
-		var lib := _load_library_file(String(files[0]), sound)
+		var first_file: String = files[0]
+		var lib := _load_library_file(first_file, sound)
 		if lib != null:
 			return lib
 	for ext in EXTENSIONS:
@@ -356,6 +375,7 @@ func _load_file(sound: String) -> AudioStream:
 	return null
 
 
+## Turns looping on for an imported .ogg, .mp3 or .wav.
 func _set_loop(res: AudioStream) -> void:
 	if res is AudioStreamOggVorbis:
 		(res as AudioStreamOggVorbis).loop = true
@@ -370,6 +390,7 @@ func _set_loop(res: AudioStream) -> void:
 			w.loop_end = frames
 
 
+## Synthesizes a sound by name (the sample-making functions are below).
 func _build(sound: String) -> AudioStream:
 	match sound:
 		"ping": return _wav(_ping())
@@ -417,11 +438,14 @@ func _build(sound: String) -> AudioStream:
 	return _wav(PackedFloat32Array([0.0]))
 
 
+## Packs float samples (-1..1) into a 16-bit WAV stream.
 func _wav(s: PackedFloat32Array, loop: bool = false, rate: int = RATE) -> AudioStreamWAV:
 	var data := PackedByteArray()
 	data.resize(s.size() * 2)
 	for i in s.size():
-		data.encode_s16(i * 2, int(clampf(s[i], -1.0, 1.0) * 32767.0))
+		var sample := clampf(s[i], -1.0, 1.0)
+		var as_int := int(sample * 32767.0)
+		data.encode_s16(i * 2, as_int)
 	var w := AudioStreamWAV.new()
 	w.format = AudioStreamWAV.FORMAT_16_BITS
 	w.mix_rate = rate
@@ -434,12 +458,14 @@ func _wav(s: PackedFloat32Array, loop: bool = false, rate: int = RATE) -> AudioS
 	return w
 
 
+## An empty (silent) sample buffer of the given length.
 func _buf(seconds: float, rate: int = RATE) -> PackedFloat32Array:
 	var s := PackedFloat32Array()
 	s.resize(int(seconds * rate))
 	return s
 
 
+## One random white-noise sample between -1 and 1.
 func _noise() -> float:
 	return randf() * 2.0 - 1.0
 
@@ -532,7 +558,9 @@ func _sweep(sec: float, f0: float, f1: float, sweep: float, decay: float, amp: f
 		var f := (f0 - f1) * exp(-t * sweep) + f1
 		phase += TAU * f / RATE
 		var env := exp(-t * decay) * minf(t * 400.0, 1.0)
-		s[i] = sin(phase) * env * amp + _noise() * exp(-t * 90.0) * click
+		var tone := sin(phase) * env * amp
+		var click_part := _noise() * exp(-t * 90.0) * click
+		s[i] = tone + click_part
 	return s
 
 
@@ -544,18 +572,23 @@ func _ping() -> PackedFloat32Array:
 		var t := float(i) / RATE
 		var f := 3000.0 * exp(-t * 3.0) + 1400.0
 		phase += TAU * f / RATE
-		s[i] += sin(phase) * exp(-t * 11.0) * minf(t * 400.0, 1.0) * 0.08
-		s[i] += sin(TAU * 140.0 * t) * exp(-t * 25.0) * minf(t * 300.0, 1.0) * 0.1
+		var shimmer := sin(phase) * exp(-t * 11.0) * minf(t * 400.0, 1.0) * 0.08
+		s[i] += shimmer
+		var body := sin(TAU * 140.0 * t) * exp(-t * 25.0) * minf(t * 300.0, 1.0) * 0.1
+		s[i] += body
 	return s
 
 
+## A plain footstep on stone.
 func _step() -> PackedFloat32Array:
 	var s := _buf(0.14)
 	var lp := 0.0
 	for i in s.size():
 		var t := float(i) / RATE
 		lp += (_noise() - lp) * 0.25
-		s[i] = lp * exp(-t * 35.0) * 1.6 + sin(TAU * 90.0 * t) * exp(-t * 40.0) * 0.5
+		var scuff := lp * exp(-t * 35.0) * 1.6
+		var thump := sin(TAU * 90.0 * t) * exp(-t * 40.0) * 0.5
+		s[i] = scuff + thump
 	return s
 
 
@@ -566,8 +599,11 @@ func _step_wood() -> PackedFloat32Array:
 	for i in s.size():
 		var t := float(i) / RATE
 		lp += (_noise() - lp) * 0.35
-		var body := sin(TAU * 170.0 * t) * exp(-t * 26.0) * 0.55 + sin(TAU * 395.0 * t) * exp(-t * 48.0) * 0.25
-		s[i] = (body + lp * exp(-t * 90.0) * 0.9) * minf(t * 800.0, 1.0)
+		var low_tone := sin(TAU * 170.0 * t) * exp(-t * 26.0) * 0.55
+		var high_tone := sin(TAU * 395.0 * t) * exp(-t * 48.0) * 0.25
+		var body := low_tone + high_tone
+		var knock := lp * exp(-t * 90.0) * 0.9
+		s[i] = (body + knock) * minf(t * 800.0, 1.0)
 	return s
 
 
@@ -611,11 +647,15 @@ func _thud(sec: float, freq: float, decay: float) -> PackedFloat32Array:
 	for i in s.size():
 		var t := float(i) / RATE
 		lp += (_noise() - lp) * 0.08
-		var v := sin(TAU * freq * t * (1.0 + 0.6 * exp(-t * 30.0))) * exp(-t * decay)
-		s[i] = (v + lp * 2.5 * exp(-t * decay * 1.5)) * minf(t * 500.0, 1.0)
+		# The pitch starts a bit high and drops quickly.
+		var pitch_drop := 1.0 + 0.6 * exp(-t * 30.0)
+		var v := sin(TAU * freq * t * pitch_drop) * exp(-t * decay)
+		var rumble := lp * 2.5 * exp(-t * decay * 1.5)
+		s[i] = (v + rumble) * minf(t * 500.0, 1.0)
 	return s
 
 
+## Menu hover: a tiny soft blip.
 func _ui_hover() -> PackedFloat32Array:
 	var s := _buf(0.06)
 	for i in s.size():
@@ -625,11 +665,13 @@ func _ui_hover() -> PackedFloat32Array:
 	return s
 
 
+## Menu click: a quick falling click with a short ring.
 func _ui_click() -> PackedFloat32Array:
 	var s := _buf(0.3)
 	for i in s.size():
 		var t := float(i) / RATE
-		var click := sin(TAU * (500.0 + 500.0 * exp(-t * 60.0)) * t) * exp(-t * 70.0) * 0.4
+		var click_freq := 500.0 + 500.0 * exp(-t * 60.0)
+		var click := sin(TAU * click_freq * t) * exp(-t * 70.0) * 0.4
 		var tail := sin(TAU * 1180.0 * t) * exp(-t * 14.0) * minf(t * 300.0, 1.0) * 0.12
 		s[i] = click + tail + _noise() * exp(-t * 300.0) * 0.12
 	return s
@@ -649,10 +691,12 @@ func _ui_back() -> PackedFloat32Array:
 	return s
 
 
+## One heartbeat thump (standard pitch and decay).
 func _thump(t: float, start: float, amp: float) -> float:
 	return _thump_at(t, start, amp, 52.0, 16.0)
 
 
+## One low thump that starts at `start` seconds.
 func _thump_at(t: float, start: float, amp: float, freq: float, decay: float) -> float:
 	var u := t - start
 	if u < 0.0:
@@ -660,6 +704,7 @@ func _thump_at(t: float, start: float, amp: float, freq: float, decay: float) ->
 	return sin(TAU * freq * u) * exp(-u * decay) * minf(u * 300.0, 1.0) * amp
 
 
+## A fast "lub-dub" heartbeat.
 func _heartbeat() -> PackedFloat32Array:
 	var s := _buf(0.6)
 	for i in s.size():
@@ -722,7 +767,9 @@ func _wind() -> PackedFloat32Array:
 	for i in s.size():
 		var t := float(i) / r
 		var gust := 0.55 + 0.3 * sin(TAU * 0.13 * t) + 0.15 * sin(TAU * 0.37 * t + 1.3)
-		var f := 2.0 * sin(PI * (380.0 + 520.0 * gust) / r)
+		# Filter frequency follows the gusts (state-variable filter below).
+		var center_freq := 380.0 + 520.0 * gust
+		var f := 2.0 * sin(PI * center_freq / r)
 		low += f * band
 		var high := _noise() - low - 0.35 * band
 		band += f * high
@@ -756,7 +803,8 @@ func _birdsong() -> PackedFloat32Array:
 			var phase := 0.0
 			for j in count:
 				var u := float(j) / count
-				phase += TAU * (f0 + glide * u + 180.0 * sin(TAU * 4.0 * u)) / r
+				var note_freq := f0 + glide * u + 180.0 * sin(TAU * 4.0 * u)
+				phase += TAU * note_freq / r
 				s[first + j] += sin(phase) * sin(PI * u) * amp
 			t0 += dur + rng.randf_range(0.03, 0.1)
 		t0 += rng.randf_range(0.5, 1.4)
@@ -774,7 +822,9 @@ func _tape_hiss() -> PackedFloat32Array:
 		lp += (x - lp) * 0.6
 		lp2 += (x - lp2) * 0.02
 		var flutter := 1.0 + 0.15 * sin(TAU * 5.5 * t) * sin(TAU * 0.7 * t)
-		var v := (x - lp2) * 0.1 * flutter + lp * 0.04 + sin(TAU * 60.0 * t) * 0.012
+		var hiss := (x - lp2) * 0.1 * flutter
+		var hum := sin(TAU * 60.0 * t) * 0.012
+		var v := hiss + lp * 0.04 + hum
 		if randf() < 0.0004:
 			v += _noise() * 0.35
 		s[i] = v
@@ -818,7 +868,10 @@ func _sting() -> PackedFloat32Array:
 		var v := 0.0
 		for f in freqs:
 			v += sin(TAU * f * t + sin(TAU * 7.0 * t) * 0.8)
-		v = v / 5.0 + _noise() * exp(-t * 6.0) * 0.6 + sin(TAU * 45.0 * t) * exp(-t * 5.0) * 0.8
+		var cluster := v / 5.0
+		var burst := _noise() * exp(-t * 6.0) * 0.6
+		var low_hit := sin(TAU * 45.0 * t) * exp(-t * 5.0) * 0.8
+		v = cluster + burst + low_hit
 		s[i] = v * minf(t * 60.0, 1.0) * exp(-t * 2.2)
 	return s
 
@@ -835,11 +888,14 @@ func _hiss() -> PackedFloat32Array:
 		var intake := 0.0
 		if t < 0.12:
 			intake = sin(PI * t / 0.12) * 0.45
-		var env := intake + smoothstep(0.1, 0.25, t) * exp(-maxf(t - 0.25, 0.0) * 1.6)
+		var rasp_env := smoothstep(0.1, 0.25, t) * exp(-maxf(t - 0.25, 0.0) * 1.6)
+		var env := intake + rasp_env
 		var trem := 0.55 + 0.45 * sin(TAU * (14.0 + 10.0 * t) * t)
 		phase += TAU * (85.0 + 70.0 * t) / RATE
 		var growl := sin(phase + 1.8 * sin(phase * 0.5)) * 0.35 * minf(t * 4.0, 1.0)
-		s[i] = ((x - lp) * trem * 0.75 + growl * trem) * env * (1.0 - smoothstep(0.95, 1.1, t))
+		var rasp := (x - lp) * trem * 0.75
+		var ending := 1.0 - smoothstep(0.95, 1.1, t)
+		s[i] = (rasp + growl * trem) * env * ending
 	return s
 
 
@@ -852,7 +908,9 @@ func _shriek() -> PackedFloat32Array:
 		var t := float(i) / RATE
 		phase += TAU * (950.0 - 300.0 * t) / RATE
 		phase2 += TAU * (1430.0 - 520.0 * t) / RATE
-		var v := sin(phase + sin(phase * 1.5) * 2.5) + sin(phase2 + sin(phase2 * 0.7) * 1.5) * 0.35 + _noise() * 0.3
+		var main_voice := sin(phase + sin(phase * 1.5) * 2.5)
+		var second_voice := sin(phase2 + sin(phase2 * 0.7) * 1.5) * 0.35
+		var v := main_voice + second_voice + _noise() * 0.3
 		s[i] = v * minf(t * 30.0, 1.0) * exp(-t * 2.5)
 	return s
 
@@ -905,7 +963,8 @@ func _drag_step() -> PackedFloat32Array:
 		var x := _noise()
 		lp += (x - lp) * 0.2
 		lp2 += (x - lp2) * 0.05
-		var thud := sin(TAU * 48.0 * t * (1.0 + 0.5 * exp(-t * 25.0))) * exp(-t * 14.0) * minf(t * 400.0, 1.0)
+		var pitch_drop := 1.0 + 0.5 * exp(-t * 25.0)
+		var thud := sin(TAU * 48.0 * t * pitch_drop) * exp(-t * 14.0) * minf(t * 400.0, 1.0)
 		var drag := 0.0
 		var u := t - 0.07
 		if u > 0.0:
@@ -988,9 +1047,12 @@ func _rope_creak() -> PackedFloat32Array:
 		if t >= next_pulse:
 			x = randf_range(0.6, 1.0)
 			# Stick-slip: the pulse rate wanders between ~25 and ~70 per second.
-			next_pulse = t + 1.0 / (25.0 + 45.0 * absf(sin(TAU * 0.8 * t + 0.4)) + randf_range(-6.0, 6.0))
+			var wander := 45.0 * absf(sin(TAU * 0.8 * t + 0.4))
+			var pulses_per_second := 25.0 + wander + randf_range(-6.0, 6.0)
+			next_pulse = t + 1.0 / pulses_per_second
 		x += _noise() * 0.04
-		var f := 2.0 * sin(PI * (380.0 + 160.0 * sin(TAU * 0.6 * t)) / RATE)
+		var center_freq := 380.0 + 160.0 * sin(TAU * 0.6 * t)
+		var f := 2.0 * sin(PI * center_freq / RATE)
 		low += f * band
 		var high := x - low - 0.12 * band
 		band += f * high
@@ -1009,9 +1071,11 @@ func _rope_snap() -> PackedFloat32Array:
 		var x := _noise()
 		lp += (x - lp) * 0.3
 		var crack := x * exp(-t * 160.0) * 1.2 + sin(TAU * 220.0 * t) * exp(-t * 40.0) * 0.4
-		phase += TAU * (2400.0 * exp(-t * 9.0) + 300.0) / RATE
+		var whip_freq := 2400.0 * exp(-t * 9.0) + 300.0
+		phase += TAU * whip_freq / RATE
 		var whip := sin(phase) * exp(-t * 7.0) * minf(t * 300.0, 1.0) * 0.25
-		var fray := (x - lp) * exp(-t * 6.0) * smoothstep(0.01, 0.05, t) * 0.35 * (0.5 + 0.5 * absf(sin(TAU * 31.0 * t)))
+		var fray_pulse := 0.5 + 0.5 * absf(sin(TAU * 31.0 * t))
+		var fray := (x - lp) * exp(-t * 6.0) * smoothstep(0.01, 0.05, t) * 0.35 * fray_pulse
 		s[i] = crack + whip + fray
 	return s
 
@@ -1026,7 +1090,8 @@ func _impact() -> PackedFloat32Array:
 		var t := float(i) / RATE
 		var x := _noise()
 		lp += (x - lp) * 0.06
-		var thud := sin(TAU * 42.0 * t * (1.0 + 0.8 * exp(-t * 20.0))) * exp(-t * 7.0) * minf(t * 600.0, 1.0)
+		var pitch_drop := 1.0 + 0.8 * exp(-t * 20.0)
+		var thud := sin(TAU * 42.0 * t * pitch_drop) * exp(-t * 7.0) * minf(t * 600.0, 1.0)
 		var crack := x * exp(-t * 70.0) * 0.6 + lp * 3.0 * exp(-t * 10.0)
 		var density := exp(-t * 4.0) * smoothstep(0.03, 0.1, t)
 		if randf() < 0.004 * density:
@@ -1036,7 +1101,9 @@ func _impact() -> PackedFloat32Array:
 		var glass := 0.0
 		var u := t - 0.12
 		if u > 0.0:
-			glass = sin(TAU * 3150.0 * u) * exp(-u * 18.0) + sin(TAU * 2480.0 * u) * exp(-u * 12.0) * 0.6
+			var glass_high := sin(TAU * 3150.0 * u) * exp(-u * 18.0)
+			var glass_low := sin(TAU * 2480.0 * u) * exp(-u * 12.0) * 0.6
+			glass = glass_high + glass_low
 			if u > 0.09:
 				glass += sin(TAU * 4720.0 * u + 1.0) * exp(-(u - 0.09) * 22.0)
 			glass *= 0.12
@@ -1072,7 +1139,9 @@ func _chime() -> PackedFloat32Array:
 			var u := t - float(k) * 0.07
 			if u > 0.0:
 				var f := notes[k]
-				v += (sin(TAU * f * u) + sin(TAU * f * 2.76 * u) * 0.25 * exp(-u * 6.0)) * exp(-u * 2.8) * minf(u * 300.0, 1.0)
+				var fundamental := sin(TAU * f * u)
+				var overtone := sin(TAU * f * 2.76 * u) * 0.25 * exp(-u * 6.0)
+				v += (fundamental + overtone) * exp(-u * 2.8) * minf(u * 300.0, 1.0)
 		s[i] = v * 0.16 * (1.0 - smoothstep(1.0, 1.2, t))
 	return _reverb(s, 1.6, 0.6)
 
@@ -1088,7 +1157,9 @@ func _crystal() -> PackedFloat32Array:
 			var u := t - float(k) * 0.05
 			if u > 0.0:
 				var f := notes[k]
-				v += (sin(TAU * f * u) + sin(TAU * f * 1.003 * u)) * exp(-u * 4.0) * minf(u * 400.0, 1.0)
+				# Two almost-equal tones beat against each other: the shimmer.
+				var pair := sin(TAU * f * u) + sin(TAU * f * 1.003 * u)
+				v += pair * exp(-u * 4.0) * minf(u * 400.0, 1.0)
 		s[i] = v * 0.1 * (1.0 - smoothstep(0.85, 1.0, t))
 	return _reverb(s, 1.2, 0.7)
 
@@ -1098,8 +1169,10 @@ func _pebble() -> PackedFloat32Array:
 	var s := _buf(0.16)
 	for i in s.size():
 		var t := float(i) / RATE
-		var v := sin(TAU * 2900.0 * t) * exp(-t * 55.0) * 0.45 + sin(TAU * 4300.0 * t) * exp(-t * 80.0) * 0.25
-		v += sin(TAU * 1200.0 * t) * exp(-t * 70.0) * 0.2 + _noise() * exp(-t * 400.0) * 0.5
+		var v := sin(TAU * 2900.0 * t) * exp(-t * 55.0) * 0.45
+		v += sin(TAU * 4300.0 * t) * exp(-t * 80.0) * 0.25
+		v += sin(TAU * 1200.0 * t) * exp(-t * 70.0) * 0.2
+		v += _noise() * exp(-t * 400.0) * 0.5
 		s[i] = v
 	return s
 
@@ -1116,8 +1189,12 @@ func _pickup_pebbles() -> PackedFloat32Array:
 			var u := t - starts[k]
 			if u >= 0.0:
 				var p := pitches[k]
-				var clack := sin(TAU * 2600.0 * p * u) * exp(-u * 60.0) * 0.4 + sin(TAU * 900.0 * p * u) * exp(-u * 45.0) * 0.25
-				v += (clack + _noise() * exp(-u * 500.0) * 0.4) * (1.0 - 0.12 * k)
+				var clack_high := sin(TAU * 2600.0 * p * u) * exp(-u * 60.0) * 0.4
+				var clack_low := sin(TAU * 900.0 * p * u) * exp(-u * 45.0) * 0.25
+				var clack := clack_high + clack_low
+				var tick := _noise() * exp(-u * 500.0) * 0.4
+				# Each later stone is a little quieter.
+				v += (clack + tick) * (1.0 - 0.12 * k)
 		s[i] = v
 	return s
 
@@ -1128,13 +1205,18 @@ func _recorder_click() -> PackedFloat32Array:
 	var lp := 0.0
 	for i in s.size():
 		var t := float(i) / RATE
+		# First click.
 		var v := sin(TAU * 1150.0 * t) * exp(-t * 90.0) * 0.5 + _noise() * exp(-t * 350.0) * 0.5
+		# Second click, 0.09 s later.
 		var u := t - 0.09
 		if u >= 0.0:
 			v += sin(TAU * 700.0 * u) * exp(-u * 70.0) * 0.45 + _noise() * exp(-u * 300.0) * 0.35
 		lp += (_noise() - lp) * 0.1
-		var whir := (sin(TAU * 118.0 * t + sin(TAU * 6.0 * t) * 0.6) * 0.12 + lp * 0.15)
-		s[i] = v + whir * smoothstep(0.12, 0.3, t) * (1.0 - smoothstep(0.38, 0.55, t))
+		# The tape motor whirring.
+		var motor := sin(TAU * 118.0 * t + sin(TAU * 6.0 * t) * 0.6) * 0.12
+		var whir := motor + lp * 0.15
+		var whir_env := smoothstep(0.12, 0.3, t) * (1.0 - smoothstep(0.38, 0.55, t))
+		s[i] = v + whir * whir_env
 	return s
 
 
@@ -1151,19 +1233,24 @@ func _scrape() -> PackedFloat32Array:
 	return s
 
 
+## Two knocks on stone.
 func _knock() -> PackedFloat32Array:
 	var s := _buf(0.6)
 	for i in s.size():
 		var t := float(i) / RATE
 		var v := 0.0
-		for start in [0.0, 0.24]:
+		var starts: Array[float] = [0.0, 0.24]
+		for start in starts:
 			var u: float = t - start
 			if u >= 0.0:
-				v += sin(TAU * 120.0 * u) * exp(-u * 30.0) + _noise() * exp(-u * 120.0) * 0.4
+				var tone := sin(TAU * 120.0 * u) * exp(-u * 30.0)
+				var tap := _noise() * exp(-u * 120.0) * 0.4
+				v += tone + tap
 		s[i] = v * 0.7
 	return s
 
 
+## A short scratch of chalk on rock.
 func _chalk() -> PackedFloat32Array:
 	var s := _buf(0.25)
 	var lp := 0.0
@@ -1171,5 +1258,8 @@ func _chalk() -> PackedFloat32Array:
 		var t := float(i) / RATE
 		var x := _noise()
 		lp += (x - lp) * 0.5
-		s[i] = (x - lp) * (0.5 + 0.5 * sin(TAU * 40.0 * t)) * sin(PI * t / 0.25) * 0.5
+		var scratch := x - lp
+		var chatter := 0.5 + 0.5 * sin(TAU * 40.0 * t)
+		var env := sin(PI * t / 0.25)
+		s[i] = scratch * chatter * env * 0.5
 	return s
