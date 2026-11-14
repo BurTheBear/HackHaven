@@ -188,9 +188,6 @@ var _prompt_gap := 0.0
 var _prompt_queue: Array[String] = []
 var _done_actions := {}
 var _last_empty := -100.0
-var _sub_phase := 0  ## 0 hidden, 1 typing, 2 holding, 3 fading
-var _sub_chars := 0.0
-var _sub_hold := 0.0
 var _caught_busy := false
 var _opening_skip := false
 var _mouse_hidden := false
@@ -323,6 +320,7 @@ func _connect_game_signals() -> void:
 	Game.level_event.connect(_on_level_event_ui)
 	Echo.ping_emitted.connect(_on_ping)
 	Settings.changed.connect(_apply_sub_size)
+	root.resized.connect(_layout_subtitles)
 	_connect_combat()
 
 
@@ -649,9 +647,16 @@ func _apply_sub_size() -> void:
 	_sub_text.add_theme_font_size_override("font_size", s)
 	_sub_speaker.add_theme_font_size_override("font_size", maxi(14, int(s * 0.65)))
 	_sub_counter.add_theme_font_size_override("font_size", maxi(13, int(s * 0.55)))
-	var half := 380.0 + 40.0 * idx
+	_layout_subtitles()
+
+
+## Keep the text wide while fitting smaller windows; only collapse the height.
+func _layout_subtitles() -> void:
+	var idx := clampi(int(Settings.subtitle_size), 0, SUB_SIZES.size() - 1)
+	var half := minf(380.0 + 40.0 * idx, maxf(root.size.x * 0.5 - 24.0, 0.0))
 	_sub_box.offset_left = -half
 	_sub_box.offset_right = half
+	_sub_box.offset_top = _sub_box.offset_bottom
 
 
 # ---------------------------------------------------------------- Public API (director, main, cutscenes)
@@ -805,7 +810,8 @@ func _end_caught() -> void:
 func show_end_screen(can_go_deeper: bool = false) -> void:
 	_prompt_box.visible = false
 	_sub_box.visible = false
-	_sub_phase = 0
+	if _sub_tween != null:
+		_sub_tween.kill()
 	set_black(0.0)
 	_end.call("show_end", can_go_deeper, _count_logs(), _count_kind(4))
 
@@ -845,7 +851,6 @@ func _process(delta: float) -> void:
 		Game.add_stat("ran")
 
 	_update_prompt(delta, live)
-	_update_subtitle(delta)
 	_update_extras(delta, live)
 
 
@@ -1247,56 +1252,26 @@ func _on_voice_log(index: int, text: String) -> void:
 		_show_line("MARA  —", "", counter)
 
 
-## Shows a subtitle line and starts typing it.
+## One timeline owns typing, reading time, fade and cleanup. A new line
+## cancels the old timeline so an old fade can never hide new dialogue.
 func _show_line(speaker: String, text: String, counter: String) -> void:
+	if _sub_tween != null:
+		_sub_tween.kill()
 	_sub_speaker.text = speaker
 	_sub_speaker.visible = speaker != "" or counter != ""
 	_sub_counter.text = counter
 	_sub_text.text = text
 	_sub_text.visible = text != ""
 	_sub_text.visible_characters = 0
-	_sub_chars = 0.0
-	_sub_hold = 2.6 + text.length() * 0.055
-	# With text: start typing it (1). Without: just hold the header (2).
-	if text != "":
-		_sub_phase = 1
-	else:
-		_sub_phase = 2
-	if _sub_tween != null:
-		_sub_tween.kill()
 	_sub_box.visible = true
-	_sub_box.reset_size()
-	_sub_box.offset_top = _sub_box.offset_bottom
-	_sub_tween = create_tween()
+	_layout_subtitles()
+	var typing_time := text.length() / 45.0
+	var reading_time := 2.6 + text.length() * 0.055
+	_sub_tween = create_tween().set_parallel(true)
 	_sub_tween.tween_property(_sub_box, "modulate:a", 1.0, 0.2)
-
-
-## Subtitle phases: typing (1) -> holding (2) -> fading (3) -> hidden (0).
-func _update_subtitle(delta: float) -> void:
-	match _sub_phase:
-		1:
-			_sub_chars += delta * 45.0
-			if _sub_chars >= _sub_text.text.length():
-				_sub_text.visible_characters = -1
-				_sub_phase = 2
-			else:
-				_sub_text.visible_characters = int(_sub_chars)
-		2:
-			_sub_hold -= delta
-			if _sub_hold <= 0.0:
-				_sub_phase = 3
-				if _sub_tween != null:
-					_sub_tween.kill()
-				_sub_tween = create_tween()
-				_sub_tween.tween_property(_sub_box, "modulate:a", 0.0, 0.6)
-				_sub_tween.tween_callback(_sub_hidden)
-
-
-## Called when the subtitle fade-out finishes.
-func _sub_hidden() -> void:
-	if _sub_phase == 3:
-		_sub_phase = 0
-		_sub_box.visible = false
+	_sub_tween.tween_property(_sub_text, "visible_characters", text.length(), typing_time)
+	_sub_tween.tween_property(_sub_box, "modulate:a", 0.0, 0.6).set_delay(typing_time + reading_time)
+	_sub_tween.chain().tween_callback(_sub_box.hide)
 
 
 ## Shows the zone name for a few seconds.
