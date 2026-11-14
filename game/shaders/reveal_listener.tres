@@ -1,0 +1,13 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/reveal.gdshader" id="1_0i60b"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_0i60b")
+shader_parameter/echo_color = Color(1, 0.23137255, 0.30588236, 1)
+shader_parameter/ping_speed = null
+shader_parameter/ring_width = null
+shader_parameter/afterglow = null
+shader_parameter/grid_scale = 3.0
+shader_parameter/near_glow = 0.0
