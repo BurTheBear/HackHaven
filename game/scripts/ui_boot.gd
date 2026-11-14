@@ -96,7 +96,7 @@ func _show(stage: String) -> void:
 			_foot.text = ""
 		"headphones":
 			_head.text = ""
-			_body.text = "Best played with headphones, in the dark."
+			_body.text = "Best played with headphones, in the dark :p"
 			_foot.text = ""
 		"gate":
 			_head.text = "ECHO"

@@ -22,9 +22,9 @@ const CRYSTAL := Color(0.45, 0.8, 1.0)
 const OPENING := ["The rope snapped. The lantern's gone.", "Call out. Listen. Find your way back."]
 const FIRST_TIP := "They go where the noise is, not where you are."
 const TIPS := [
-	"Ping, then move. Standing on your own echo is what gets you caught.",
-	"Throw a pebble far away. They'll go where it lands.",
-	"Sneak and your footsteps go silent.",
+	"Move after you make noise. Waiting will let the monsters catch you.",
+	"Throw a pebble. They follow the noise and will go where it lands.",
+	"Sneak by pressing [C] and your footsteps go silent.",
 	"A whisper shows you a little, and nothing hears it.",
 	"Running is loud. They hear your steps from nine metres.",
 	"Listen first. You can hear them breathing before you see them.",
