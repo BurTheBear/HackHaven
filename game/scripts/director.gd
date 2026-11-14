@@ -99,7 +99,7 @@ func _process(delta: float) -> void:
 	_quiet_time += delta
 	_dust_cooldown = maxf(_dust_cooldown - delta, 0.0)
 
-	var listeners := get_tree().get_nodes_in_group("listener")
+	var listeners: Array = get_tree().get_nodes_in_group("listener")
 	var nearest := INF
 	for l in listeners:
 		var d: float = l.global_position.distance_to(player.global_position)
@@ -176,9 +176,9 @@ func _apply(delta: float) -> void:
 	else:
 		_beat_timer = 0.0
 	if player:
-		player.shake = dread * dread * 0.025
+		player.set("shake", dread * dread * 0.025)
 	if ui:
-		ui.set_dread(dread)
+		ui.call("set_dread", dread)
 
 
 func _is_silent() -> bool:
@@ -365,7 +365,7 @@ func _try_shift() -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
-	var props := get_tree().get_nodes_in_group("shifting")
+	var props: Array = get_tree().get_nodes_in_group("shifting")
 	props.shuffle()
 	for n in props:
 		var prop := n as Node3D
@@ -406,7 +406,7 @@ func _on_caught() -> void:
 	# Jump scare: light up the thing that got you, right in your face.
 	Echo.emit_ping(Game.catcher_position + Vector3.UP * 1.2, 5.0, false)
 	if ui and not Settings.no_flash:
-		ui.flash_red()
+		ui.call("flash_red")
 
 
 func _on_checkpoint() -> void:

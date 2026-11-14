@@ -56,13 +56,13 @@ func _ready() -> void:
 	_wind.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
 	_wind.volume_db = -80.0
 	add_child(_wind)
-	var exits := get_tree().get_nodes_in_group("exit")
+	var exits: Array = get_tree().get_nodes_in_group("exit")
 	if not exits.is_empty():
 		_exit = exits[0] as Node3D
 	if _exit:
 		_wind.global_position = _exit.global_position + Vector3.UP * 3.0
 
-	for m in get_tree().get_nodes_in_group("drip_source"):
+	for m in (get_tree().get_nodes_in_group("drip_source") as Array):
 		var marker := m as Node3D
 		if marker == null:
 			continue
@@ -223,7 +223,7 @@ func _update_voice(delta: float) -> void:
 	_tape.stop()
 	_tape.volume_db = -80.0
 	_silence_left = LAST_LOG_SILENCE
-	for l in get_tree().get_nodes_in_group("listener"):
+	for l in (get_tree().get_nodes_in_group("listener") as Array):
 		if l.has_method("hush"):
 			l.hush(LAST_LOG_SILENCE, 3.0)
 	if player:
@@ -274,7 +274,7 @@ func _on_level_event(event_name: String) -> void:
 func _hall_silence() -> void:
 	_silence_left = HALL_SILENCE
 	_hall_listener = _nearest_awake_listener()
-	for l in get_tree().get_nodes_in_group("listener"):
+	for l in (get_tree().get_nodes_in_group("listener") as Array):
 		if l.has_method("hush"):
 			l.hush(HALL_SILENCE, 2.5)
 	if _hall_listener != null and _hall_listener.has_method("hush"):
@@ -289,7 +289,7 @@ func _nearest_awake_listener() -> Node3D:
 		return null
 	var best: Node3D = null
 	var best_d := INF
-	for l in get_tree().get_nodes_in_group("listener"):
+	for l in (get_tree().get_nodes_in_group("listener") as Array):
 		var n := l as Node3D
 		if n == null or n.get("asleep") == true:
 			continue
