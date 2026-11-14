@@ -23,7 +23,15 @@ func run() -> void:
 	echo_system = root.get_node("Echo")
 	settings.reset_to_defaults()
 	check(settings.damage_enabled == false or baseline, "Combat defaults off")
-	settings.damage_enabled = false
+	var menu = load("res://scripts/menu_settings.gd").new()
+	root.add_child(menu)
+	var modes: OptionButton = menu._controls["damage_enabled"]
+	check(modes.get_item_text(0) == "No Damage" and modes.selected == 0, "No Damage mode selected by default")
+	menu._on_option(1, "damage_enabled")
+	check(settings.damage_enabled, "Damage mode can be selected")
+	menu._on_option(0, "damage_enabled")
+	check(not settings.damage_enabled, "No Damage mode can be selected")
+	menu.queue_free()
 	game.reset(Vector3.ZERO)
 	game.start()
 	var world := Node3D.new()
