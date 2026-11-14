@@ -13,7 +13,7 @@ Your lantern died deep underground. The only way to see is to make noise, and ev
 - **Physics-based distraction:** pebbles bounce, ping where they land and pull monsters away
 - **Real-time reveal shader:** the world only exists where your echo touches it
 - **Minimalist neon aesthetic:** neon outlines on pure black
-- **AI-voiced environmental storytelling:** voice logs from a lost explorer, recorded by the team
+- **Voiced environmental storytelling:** voice logs from a lost explorer, recorded by the team
 - **3D positional audio** and **environmental storytelling**, paid off by a full-color reveal at the end
 
 ## 3. How it fits "Bounce Back"
