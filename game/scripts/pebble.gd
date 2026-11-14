@@ -33,4 +33,4 @@ func _on_body_entered(_body: Node) -> void:
 		click.play()
 	if _bounces < ECHO_BOUNCES:
 		_bounces += 1
-		Echo.emit_ping(global_position, PING_RADIUS, true)
+		Echo.emit_ping(global_position, PING_RADIUS, true, true)
