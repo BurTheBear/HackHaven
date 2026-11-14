@@ -1,7 +1,7 @@
 extends CharacterBody3D
 ## First-person player: walk / sneak / run (with stamina), mouse and controller
-## look, ping, whisper ping, throw pebbles (hold to aim, release to throw) and
-## pebbles, stealth and optional dagger combat.
+## look, ping, whisper ping, pebbles (hold to aim, release to throw), stealth
+## and optional dagger combat.
 ## Camera feel: sneak crouch, opt-in head bob, landing dip, wall bumps, a
 ## little extra FOV at a sprint and a slow roll when the dread is high.
 
