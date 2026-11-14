@@ -1,14 +1,62 @@
-extends RefCounted
+extends Node3D
 ## Builds a Listener's body out of primitives: a hunched torso with a ridge of
 ## vertebrae, a small head pushed forward on a long neck, a hanging jaw, and
 ## long thin arms whose fingers almost drag on the floor. Every part uses the
 ## red reveal material, so it only exists in echoes. Feet at the root's
 ## origin, facing -Z. Used by listener.gd and by the director's phantoms.
+## build() also attaches this script to the root it builds under (if that
+## root has no script), so callers can use root.flash_hurt() / set_dying().
 
 const RED := Color(1.0, 0.23, 0.31)
 const MODEL_PATH := "res://assets/models/listener.glb"
 const MODEL_SCALE := 0.72
 const AnimDriver := preload("res://scripts/ai_listener_anim.gd")
+const ALBEDO_PATH := "res://assets/models/listener_Listener_Albedo_2K.png"
+const NORMAL_PATH := "res://assets/models/listener_Listener_Normal_2K.png"
+const SELF_PATH := "res://scripts/ai_listener_body.gd"
+
+var _mat: ShaderMaterial
+var _model: Node3D
+var _flash := 0.0
+var _flash_tween: Tween
+var _jolt_tween: Tween
+var _rest_pos := Vector3.ZERO
+var _rest_rot := Vector3.ZERO
+
+
+## Briefly flashes the Listener white-hot and jolts it back (a stagger).
+func flash_hurt() -> void:
+	if _mat == null:
+		return
+	if _flash_tween:
+		_flash_tween.kill()
+	_flash_tween = create_tween()
+	_flash_tween.tween_method(_set_flash, 1.0, 0.0, 0.28).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	var target: Node3D = _model if _model != null else self
+	if _jolt_tween and _jolt_tween.is_valid():
+		_jolt_tween.kill()
+		target.position = _rest_pos
+		target.rotation = _rest_rot
+	_rest_pos = target.position
+	_rest_rot = target.rotation
+	var back := Vector3(0.0, 0.0, 0.12)
+	_jolt_tween = create_tween()
+	_jolt_tween.tween_property(target, "position", _rest_pos + back, 0.06).set_ease(Tween.EASE_OUT)
+	_jolt_tween.parallel().tween_property(target, "rotation:x", _rest_rot.x - 0.18, 0.06)
+	_jolt_tween.tween_property(target, "position", _rest_pos, 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC)
+	_jolt_tween.parallel().tween_property(target, "rotation:x", _rest_rot.x, 0.3).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC)
+
+
+## 0..1: darkens the Listener and dissolves it away.
+func set_dying(t: float) -> void:
+	if _mat != null:
+		_mat.set_shader_parameter("dying", clampf(t, 0.0, 1.0))
+
+
+func _set_flash(v: float) -> void:
+	_flash = v
+	if _mat != null:
+		_mat.set_shader_parameter("hurt_flash", v)
 
 
 ## Red reveal material. Its afterglow is longer than the cave's, so a
@@ -20,6 +68,8 @@ static func make_material() -> ShaderMaterial:
 	mat.set_shader_parameter("grid_scale", 3.0)
 	mat.set_shader_parameter("near_glow", 0.0)
 	mat.set_shader_parameter("afterglow", 3.2)
+	mat.set_shader_parameter("use_grid", 0.0)
+	mat.set_shader_parameter("listener_look", 1.0)
 	return mat
 
 
@@ -27,10 +77,27 @@ static func make_material() -> ShaderMaterial:
 ## around). Uses the Listener model (listener.glb, red reveal material, animated
 ## by the parent Listener); falls back to the primitive body if it won't load.
 static func build(root: Node3D, mat: Material) -> Node3D:
-	var model := _build_model(root, mat)
-	if model != null:
-		return model
-	return _build_primitive(root, mat)
+	if root.get_script() == null:
+		root.set_script(load(SELF_PATH))
+	if root.has_method("_attach"):
+		root.call("_attach", mat)
+	var head := _build_model(root, mat)
+	if head == null:
+		head = _build_primitive(root, mat)
+	return head
+
+
+func _attach(mat: Material) -> void:
+	_mat = mat as ShaderMaterial
+
+
+static func _set_textures(mat: Material, albedo: Texture2D, normal: Texture2D) -> void:
+	var sm := mat as ShaderMaterial
+	if sm == null:
+		return
+	sm.set_shader_parameter("albedo_tex", albedo)
+	if normal != null:
+		sm.set_shader_parameter("listener_normal", normal)
 
 
 static func _build_model(root: Node3D, mat: Material) -> Node3D:
@@ -46,6 +113,18 @@ static func _build_model(root: Node3D, mat: Material) -> Node3D:
 	inst.scale = Vector3.ONE * MODEL_SCALE
 	inst.rotation.y = PI
 	root.add_child(inst)
+	if root.has_method("_attach"):
+		root.set("_model", inst)
+	var albedo: Texture2D = null
+	if ResourceLoader.exists(ALBEDO_PATH):
+		albedo = load(ALBEDO_PATH) as Texture2D
+	var normal: Texture2D = null
+	if ResourceLoader.exists(NORMAL_PATH):
+		normal = load(NORMAL_PATH) as Texture2D
+	if albedo != null:
+		_set_textures(mat, albedo, normal)
+	else:
+		_set_textures(mat, _flat_texture(), null)
 	for node in inst.find_children("*", "MeshInstance3D", true, false):
 		var part := node as MeshInstance3D
 		part.material_override = mat
@@ -68,7 +147,15 @@ static func _build_model(root: Node3D, mat: Material) -> Node3D:
 	return head
 
 
+## A 1x1 dark flesh texture for bodies without the model's albedo.
+static func _flat_texture() -> Texture2D:
+	var img := Image.create(1, 1, false, Image.FORMAT_RGB8)
+	img.fill(Color(0.24, 0.07, 0.07))
+	return ImageTexture.create_from_image(img)
+
+
 static func _build_primitive(root: Node3D, mat: Material) -> Node3D:
+	_set_textures(mat, _flat_texture(), null)
 	var lean := deg_to_rad(-52.0)
 	var spine := Vector3(0.0, cos(lean), sin(lean))  # torso axis, leaning forward
 	var back := Vector3(0.0, -sin(lean), cos(lean))  # out of the hunched back

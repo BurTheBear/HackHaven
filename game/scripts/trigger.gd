@@ -9,11 +9,14 @@ extends Area3D
 ## Voice logs play when the player presses "interact" inside the area.
 ## Nothing depends on order: every trigger only cares about the player entering it.
 
-enum Kind { CHECKPOINT, PEBBLES, VOICE_LOG, EXIT, CRYSTAL, HINT, ZONE, JOURNAL }
+## DAGGER (added last so the other values never change): a combat pickup.
+enum Kind { CHECKPOINT, PEBBLES, VOICE_LOG, EXIT, CRYSTAL, HINT, ZONE, JOURNAL, DAGGER }
 
 const GOLD := Color(0.8, 0.627451, 0.2164706)
 const CRYSTAL_BLUE := Color(0.45, 0.8, 1.0)
 const GLINT := Color(1.0, 0.96, 0.8)
+const DAGGER_STEEL := Color(0.75, 0.88, 1.0)
+const DaggerModel := preload("res://scripts/combat_dagger_model.gd")
 
 @export var kind := Kind.CHECKPOINT
 @export var pebble_amount := 2
@@ -155,6 +158,14 @@ func _activate() -> void:
 		Kind.ZONE:
 			Game.current_zone = zone_name
 			Game.zone_entered.emit(zone_name)
+		Kind.DAGGER:
+			Game.pick_dagger()
+			Sfx.play("dagger_pickup", -6.0)
+			if Game.damage_enabled():
+				Game.prompt_requested.emit("attack")
+				if subtitle == "":
+					Game.show_subtitle("A dagger. They can bleed.")
+			hide()
 		Kind.JOURNAL:
 			# game_state.gd records the page and the stat.
 			if Game.has_signal("journal_page"):
@@ -246,6 +257,10 @@ func _animate(delta: float) -> void:
 		Kind.JOURNAL:
 			glow = 0.6 + 0.4 * sin(_time * 2.2)
 			_visual.rotation.y += delta * 0.6
+		Kind.DAGGER:
+			glow = 0.75 + 0.25 * sin(_time * 3.0)
+			_visual.rotation.y += delta * 0.9
+			_visual.position.y = floor_offset + 0.35 + sin(_time * 1.6) * 0.05
 	_material.albedo_color = Color(color.r * glow, color.g * glow, color.b * glow, 1.0)
 
 
@@ -262,13 +277,15 @@ func _twinkle() -> void:
 
 
 func _build_visual() -> void:
-	if kind != Kind.PEBBLES and kind != Kind.VOICE_LOG and kind != Kind.CRYSTAL and kind != Kind.CHECKPOINT and kind != Kind.JOURNAL:
+	if kind != Kind.PEBBLES and kind != Kind.VOICE_LOG and kind != Kind.CRYSTAL and kind != Kind.CHECKPOINT and kind != Kind.JOURNAL and kind != Kind.DAGGER:
 		return
 	_visual = Node3D.new()
 	_visual.name = "Shape"
 	add_child(_visual)
 	_visual.position = Vector3(0.0, floor_offset, 0.0)
 	_base_color = CRYSTAL_BLUE if kind == Kind.CRYSTAL else GOLD
+	if kind == Kind.DAGGER:
+		_base_color = DAGGER_STEEL
 	_material = StandardMaterial3D.new()
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_material.albedo_color = _base_color
@@ -283,6 +300,8 @@ func _build_visual() -> void:
 			_build_lantern_stand()
 		Kind.JOURNAL:
 			_build_page()
+		Kind.DAGGER:
+			_build_dagger()
 
 
 func _part(mesh: Mesh, pos: Vector3, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
@@ -391,3 +410,12 @@ func _build_page() -> void:
 	_material.albedo_color = _base_color
 	_part(_box(Vector3(0.24, 0.012, 0.32)), Vector3(0.0, 0.03, 0.0), Vector3(4.0, 0.0, 3.0))
 	_part(_box(Vector3(0.08, 0.012, 0.08)), Vector3(0.09, 0.05, 0.13), Vector3(0.0, 20.0, 12.0))
+
+
+## A dagger floating just above the floor, blade tilted down, slowly turning.
+func _build_dagger() -> void:
+	_visual.position.y = floor_offset + 0.35
+	var dagger := DaggerModel.build(_material)
+	dagger.scale = Vector3.ONE * 1.6
+	dagger.rotation_degrees = Vector3(-60.0, 0.0, 0.0)
+	_visual.add_child(dagger)

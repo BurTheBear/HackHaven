@@ -1411,3 +1411,39 @@ patrol_points = PackedVector3Array(0, 0, 0, -2.9, 0, -5, -2.9, 0, 3, 6, 0, -2)
 patrol_speed = 1.8
 investigate_speed = 4.0
 alert_time = 1.1
+
+[node name="Dagger01" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.8, 4.0, -133.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 8
+floor_offset = -1.0
+subtitle = "A dagger, wedged in the rock of the nook."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Dagger01"]
+shape = SubResource("BoxShape3D_1p6_2p0_1p6")
+
+[node name="Dagger02" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.5, 1.0, -102.8)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 8
+floor_offset = -1.0
+subtitle = "A blade, tucked away where someone hid."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Dagger02"]
+shape = SubResource("BoxShape3D_1p6_2p0_1p6")
+
+[node name="Dagger03" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -11.8, 4.0, -147.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 8
+floor_offset = -1.0
+subtitle = "Another dagger. The last one who hid here fought back."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Dagger03"]
+shape = SubResource("BoxShape3D_1p6_2p0_1p6")
