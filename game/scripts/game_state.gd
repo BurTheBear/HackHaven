@@ -7,6 +7,23 @@ signal player_caught
 signal checkpoint_reached
 signal game_won
 signal subtitle(text: String)
+# --- Shared contract between systems (UI, player, audio/AI, level) ---
+## A voice log was picked up (UI shows "MARA —" subtitle, log counter).
+signal voice_log(index: int, text: String)
+## Entered a named zone ("THE VEINS"). Level triggers emit, UI shows a card.
+signal zone_entered(zone_name: String)
+## Ask the UI to show a one-time control prompt by id (see ui prompt table).
+signal prompt_requested(id: String)
+## A Listener started hunting because it heard something at `origin`.
+signal listener_alerted(listener_position: Vector3)
+## Caption for an important sound, for deaf / hard-of-hearing players.
+signal caption(text: String, world_position: Vector3)
+## Scripted level event by name ("hall_silence"). Level emits, director reacts.
+signal level_event(event_name: String)
+## Player fell into the chasm / out of the level (not caught).
+signal player_fell
+## A run stat changed (UI may show it).
+signal stat_changed(stat_name: String, value: int)
 
 enum State { TITLE, PLAYING, CAUGHT, WON }
 enum Upgrade { PING_RADIUS, PING_COOLDOWN, MAX_PEBBLES }
@@ -26,6 +43,24 @@ var times_caught := 0
 var run_time := 0.0
 var best_time := -1.0
 var new_best := false
+## Facing (radians, player rotation.y) to respawn with at the checkpoint.
+var checkpoint_yaw := 0.0
+## Which level main.gd loads: 0 = level.tscn, 1 = level2.tscn.
+var level_index := 0
+var current_zone := ""
+## Run stats: "pings", "whispers", "pebbles_thrown", "logs", "crystals", "chalk".
+var stats := {}
+var logs_found: Array[int] = []
+var crystals_found := 0
+
+
+func add_stat(stat_name: String, amount: int = 1) -> void:
+	stats[stat_name] = int(stats.get(stat_name, 0)) + amount
+	stat_changed.emit(stat_name, stats[stat_name])
+
+
+func get_stat(stat_name: String) -> int:
+	return int(stats.get(stat_name, 0))
 
 
 func _ready() -> void:
@@ -44,6 +79,11 @@ func reset(spawn: Vector3) -> void:
 	times_caught = 0
 	run_time = 0.0
 	new_best = false
+	checkpoint_yaw = 0.0
+	current_zone = ""
+	stats = {}
+	logs_found.clear()
+	crystals_found = 0
 	_set_state(State.TITLE)
 	pebbles_changed.emit(pebbles)
 
@@ -80,8 +120,10 @@ func apply_upgrade(kind: int) -> String:
 			return "Echo crystal: you can carry one more stone."
 
 
-func reach_checkpoint(pos: Vector3) -> void:
+func reach_checkpoint(pos: Vector3, yaw: float = NAN) -> void:
 	checkpoint_position = pos
+	if not is_nan(yaw):
+		checkpoint_yaw = yaw
 	checkpoint_pebbles = pebbles
 	checkpoint_reached.emit()
 
