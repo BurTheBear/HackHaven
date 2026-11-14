@@ -8,31 +8,18 @@ const Style = preload("res://scripts/ui_style.gd")
 ## [text, font size, color]. Asset credits are placeholders: fill them in
 ## alongside the README's Credits section.
 const LINES := [
-	["ECHO", 64, "cyan"],
-	["A game about finding your way back.", 18, "muted"],
+	["ECHO", 60, "cyan"],
+	["A game about echolocation i guess", 20, "muted"],
 	["", 30, "text"],
 	["TEAM", 20, "gold"],
-	["Shreyansh Nikam", 26, "text"],
-	["Full game build", 15, "muted"],
-	["Elias Chen", 26, "text"],
-	["Assets · with Atharv", 15, "muted"],
-	["Atharv", 26, "text"],
-	["Assets · with Elias Chen", 15, "muted"],
-	["", 30, "text"],
-	["VOICES", 20, "gold"],
-	["Mara and the Listeners: recorded by the team", 17, "text"],
-	["", 24, "text"],
-	["SOUND", 20, "gold"],
-	["Placeholder sounds synthesized in code", 17, "text"],
-	["Full asset and sound credits: game/CREDITS.md", 17, "muted"],
-	["", 24, "text"],
-	["ART", 20, "gold"],
-	["CC0 asset packs: add pack names here", 17, "muted"],
-	["", 30, "text"],
-	["Built with Godot 4", 22, "cyan"],
-	["Made for Hack Club Haven · theme: Bounce Back", 16, "muted"],
-	["", 40, "text"],
-	["Thank you for listening.", 22, "gold"],
+	["Shreyansh Nikam", 30, "text"],
+	["Elias Chen", 30, "text"],
+	["Atharv", 30, "text"],
+	
+	["Built with Godot 4", 20, "cyan"],
+	["Made for Hack Club Haven - Theme: Bounce Back", 20, "muted"],
+	["", 20, "text"],
+	["Thank you for listening. (haha get it)", 10, "gold"],
 ]
 
 var embedded := false
