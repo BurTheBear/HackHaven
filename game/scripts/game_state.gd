@@ -1,5 +1,5 @@
 extends Node
-## Autoload "Game": run state, checkpoint, pebbles and stats.
+## Autoload "Game": run state, checkpoint, pebbles, upgrades and stats.
 
 signal state_changed(state: int)
 signal pebbles_changed(count: int)
@@ -9,24 +9,41 @@ signal game_won
 signal subtitle(text: String)
 
 enum State { TITLE, PLAYING, CAUGHT, WON }
+enum Upgrade { PING_RADIUS, PING_COOLDOWN, MAX_PEBBLES }
 
 const START_PEBBLES := 3
-const MAX_PEBBLES := 5
+const SAVE_PATH := "user://echo.cfg"
 
 var state: State = State.TITLE
 var pebbles := START_PEBBLES
+var max_pebbles := 5
+var ping_radius := 22.0
+var ping_cooldown := 1.0
 var checkpoint_position := Vector3.ZERO
 var checkpoint_pebbles := START_PEBBLES
+var catcher_position := Vector3.ZERO
 var times_caught := 0
 var run_time := 0.0
+var best_time := -1.0
+var new_best := false
+
+
+func _ready() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) == OK:
+		best_time = cfg.get_value("run", "best_time", -1.0)
 
 
 func reset(spawn: Vector3) -> void:
 	pebbles = START_PEBBLES
+	max_pebbles = 5
+	ping_radius = 22.0
+	ping_cooldown = 1.0
 	checkpoint_position = spawn
 	checkpoint_pebbles = START_PEBBLES
 	times_caught = 0
 	run_time = 0.0
+	new_best = false
 	_set_state(State.TITLE)
 	pebbles_changed.emit(pebbles)
 
@@ -44,8 +61,23 @@ func use_pebble() -> bool:
 
 
 func add_pebbles(amount: int) -> void:
-	pebbles = mini(pebbles + amount, MAX_PEBBLES)
+	pebbles = mini(pebbles + amount, max_pebbles)
 	pebbles_changed.emit(pebbles)
+
+
+## Echo crystals.
+func apply_upgrade(kind: int) -> String:
+	match kind:
+		Upgrade.PING_RADIUS:
+			ping_radius *= 1.2
+			return "Echo crystal: your call carries further."
+		Upgrade.PING_COOLDOWN:
+			ping_cooldown = maxf(ping_cooldown - 0.2, 0.4)
+			return "Echo crystal: you can call again sooner."
+		_:
+			max_pebbles += 1
+			add_pebbles(1)
+			return "Echo crystal: you can carry one more stone."
 
 
 func reach_checkpoint(pos: Vector3) -> void:
@@ -54,9 +86,10 @@ func reach_checkpoint(pos: Vector3) -> void:
 	checkpoint_reached.emit()
 
 
-func catch_player() -> void:
+func catch_player(from: Vector3 = Vector3.ZERO) -> void:
 	if state != State.PLAYING:
 		return
+	catcher_position = from
 	times_caught += 1
 	_set_state(State.CAUGHT)
 	player_caught.emit()
@@ -71,6 +104,12 @@ func respawned() -> void:
 func win() -> void:
 	if state != State.PLAYING:
 		return
+	if best_time < 0.0 or run_time < best_time:
+		best_time = run_time
+		new_best = true
+		var cfg := ConfigFile.new()
+		cfg.set_value("run", "best_time", best_time)
+		cfg.save(SAVE_PATH)
 	_set_state(State.WON)
 	game_won.emit()
 
