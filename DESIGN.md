@@ -50,7 +50,19 @@ Each loop takes roughly 10 to 30 seconds.
 | Look | Mouse (click the game to lock the mouse) |
 | Ping | Left click or Space |
 | Throw pebble | Right click or E |
+| Whisper ping (small, silent) | Q |
+| Sneak (silent footsteps) / Run (loud) | Hold C / Hold Shift |
+| Chalk mark | F |
 | Pause | Esc or P (the game also pauses whenever the mouse unlocks, see section 14) |
+
+### Horror systems (added after researching Alien: Isolation, Amnesia, Dead Space, Perception)
+- **Director** (`scripts/director.gd`): nudges a Listener toward your rough area if you've been quiet too long, and backs them off after ~10 s of high pressure (Alien: Isolation's menace gauge: tension, then release).
+- **Dread:** the closer a Listener, the faster the heartbeat, the redder the screen edge and the more the camera trembles.
+- **False scares:** drips, scrapes and knocks in the dark, and now and then a phantom red Listener in your echo that's gone on the next ping.
+- **Footsteps are noise:** walking is heard within 3 m, running within 9 m, sneaking is silent.
+- **Listener variety:** the Hall patroller stops to listen; the Zone 4 Sleeper wakes with a shriek; the Zone 4 Stalker is faster than you walk.
+- **Getting caught:** your view snaps to the thing that got you, its echo lights up in your face, a sting plays and the screen flashes red.
+- **Audio:** placeholder sounds are synthesized in code (`scripts/sfx.gd`). Replace them with recorded or CC0 files whenever you like.
 
 ## 8. Mechanics
 

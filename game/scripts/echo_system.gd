@@ -5,6 +5,8 @@ extends Node
 ## never wipes out the player's ping mid-afterglow.
 
 signal ping_emitted(origin: Vector3, max_radius: float, loud: bool)
+## A sound with no echo (footsteps): Listeners inside radius hear it, nothing lights up.
+signal noise_made(origin: Vector3, radius: float)
 
 const GROUP_SIZE := 4
 const SLOTS := 8
@@ -47,6 +49,10 @@ func emit_ping(origin: Vector3, max_radius: float = 22.0, loud: bool = true, is_
 ## Called on every footstep: briefly lights the floor around the player.
 func step() -> void:
 	_step_glow = 1.0
+
+
+func make_noise(origin: Vector3, radius: float) -> void:
+	noise_made.emit(origin, radius)
 
 
 func clear() -> void:

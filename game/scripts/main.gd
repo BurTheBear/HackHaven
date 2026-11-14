@@ -16,6 +16,10 @@ func _ready() -> void:
 	sun.visible = false
 	Game.player_caught.connect(_on_caught)
 	Game.game_won.connect(_on_won)
+	var director := preload("res://scripts/director.gd").new()
+	director.name = "Director"
+	add_child(director)
+	director.setup(player, $UI)
 
 
 func _unhandled_input(event: InputEvent) -> void:
