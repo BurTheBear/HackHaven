@@ -1,3 +1,3 @@
 # Atharv's workspace
 
-Prototypes, tests and experiments. When something works, move it into `game/src/game/` and tell the team.
+Notes, sketches and reference material. Put prototype scenes in `game/sandbox/atharv/` so Godot can open them.
