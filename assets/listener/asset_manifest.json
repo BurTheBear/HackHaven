@@ -1,0 +1,29 @@
+{
+  "vertices": 20536,
+  "triangles": 39460,
+  "bones": 17,
+  "materials": 6,
+  "animations": [
+    {
+      "name": "Idle_Breathe",
+      "frames": 81,
+      "loop": true
+    },
+    {
+      "name": "Walk_Stalk",
+      "frames": 41,
+      "loop": true
+    },
+    {
+      "name": "Alert_Listen",
+      "frames": 33,
+      "loop": false
+    },
+    {
+      "name": "Sleep_Dormant",
+      "frames": 97,
+      "loop": true
+    }
+  ],
+  "height_m": 3.3553544376045465
+}
