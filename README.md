@@ -4,6 +4,8 @@ Our Hack Club Haven game jam entry: **ECHO**, a first-person stealth-horror game
 
 **Full game design doc: [DESIGN.md](DESIGN.md)**
 
+**Audio plan for the ElevenLabs sponsor track: [ELEVENLABS.md](ELEVENLABS.md)**
+
 ## Folders
 - `game/`: the Godot project. Open `game/project.godot` in Godot.
 - `atharv/`, `shreyansh/`, `elias/`: personal notes, sketches and reference.
@@ -19,7 +21,8 @@ Our Hack Club Haven game jam entry: **ECHO**, a first-person stealth-horror game
 - Save all scenes (Cmd+S) before you commit.
 - Each person works in their own scenes. Only one person edits `main.tscn`.
 - Export to web early and test the browser build often.
-- Art and sound: CC0 asset packs only (Kenney, Quaternius, KayKit, Poly Pizza, Poly Haven). No AI-generated art or audio (Haven rule). Credit every pack below.
+- Art: CC0 asset packs only (Kenney, Quaternius, KayKit, Poly Pizza, Poly Haven), no AI-generated art. Credit every pack below.
+- Sound: made with ElevenLabs for the sponsor track. Every prompt and line is in [ELEVENLABS.md](ELEVENLABS.md). Generate the files ahead of time; the game never calls the API.
 
 ## Godot MCP (optional)
 `.mcp.json` connects Claude Code to Godot through the [Godot MCP server](https://github.com/Coding-Solo/godot-mcp). It can launch the editor, run the game and read its errors and debug output.
@@ -36,3 +39,4 @@ env = { GODOT_PATH = "/Applications/Godot.app/Contents/MacOS/Godot" }
 - Stay within Haven's AI rules: use it to run and debug the game, not to build the game for you.
 
 ## Credits
+- Voices, sound effects and ambience: made with [ElevenLabs](https://elevenlabs.io)
