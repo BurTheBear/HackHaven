@@ -1,0 +1,13 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/reveal.gdshader" id="1_r25hf"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_r25hf")
+shader_parameter/echo_color = null
+shader_parameter/ping_speed = null
+shader_parameter/ring_width = null
+shader_parameter/afterglow = null
+shader_parameter/grid_scale = null
+shader_parameter/near_glow = null

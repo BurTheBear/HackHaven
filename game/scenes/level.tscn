@@ -1,0 +1,236 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/level.gd" id="1_ppgk2"]
+[ext_resource type="Shader" path="res://shaders/reveal.gdshader" id="2_2r41h"]
+[ext_resource type="Script" path="res://scripts/trigger.gd" id="3_klq6b"]
+[ext_resource type="PackedScene" path="res://scenes/listener.tscn" id="4_b121j"]
+[ext_resource type="Script" path="res://scripts/listener.gd" id="5_8c41q"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_olg7q"]
+render_priority = 0
+shader = ExtResource("2_2r41h")
+shader_parameter/echo_color = null
+shader_parameter/ping_speed = null
+shader_parameter/ring_width = null
+shader_parameter/afterglow = null
+shader_parameter/grid_scale = null
+shader_parameter/near_glow = null
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_t1rx8"]
+albedo_color = Color(0.45, 0.38, 0.31, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8iemx"]
+size = Vector3(3, 3, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5jwms"]
+shading_mode = 0
+albedo_color = Color(0.8, 0.627451, 0.2164706, 0.8)
+
+[sub_resource type="SphereMesh" id="SphereMesh_64w2a"]
+radius = 0.15
+height = 0.3
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_fpun6"]
+size = Vector3(2, 2, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wc255"]
+size = Vector3(2, 3, 3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_arp2o"]
+size = Vector3(0.2, 0.5, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ux5qa"]
+size = Vector3(1, 3, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_82cfe"]
+size = Vector3(3, 3, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_gunhw"]
+size = Vector3(4, 3, 2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8gofh"]
+shading_mode = 0
+albedo_color = Color(0.45, 0.475, 0.5, 0.5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_h6wmr"]
+size = Vector3(3.5, 0.2, 3.5)
+
+[node name="Level" type="Node3D" unique_id=1855566526]
+script = ExtResource("1_ppgk2")
+reveal_material = SubResource("ShaderMaterial_olg7q")
+
+[node name="Geometry" type="Node3D" parent="." unique_id=1833240128]
+
+[node name="Cave" type="CSGCombiner3D" parent="Geometry" unique_id=597455011]
+use_collision = true
+
+[node name="Rock" type="CSGBox3D" parent="Geometry/Cave" unique_id=1484723844]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 5, -18)
+size = Vector3(70, 12, 70)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StartRoom" type="CSGBox3D" parent="Geometry/Cave" unique_id=1256642542]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+operation = 2
+size = Vector3(6, 4, 6)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Tunnel" type="CSGBox3D" parent="Geometry/Cave" unique_id=681401570]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, -10)
+operation = 2
+size = Vector3(3, 3.5, 16)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Bend" type="CSGBox3D" parent="Geometry/Cave" unique_id=1152971862]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1.75, -19.5)
+operation = 2
+size = Vector3(12, 3.5, 3)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Hall" type="CSGBox3D" parent="Geometry/Cave" unique_id=716658585]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 3, -19.5)
+operation = 2
+size = Vector3(14, 6, 14)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="ExitTunnel" type="CSGBox3D" parent="Geometry/Cave" unique_id=1354306562]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 1.75, -32)
+operation = 2
+size = Vector3(3, 3.5, 12)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="ExitShaft" type="CSGBox3D" parent="Geometry/Cave" unique_id=683691380]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 4.5, -39)
+operation = 2
+size = Vector3(4, 9, 4)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Pillar0" type="CSGCylinder3D" parent="Geometry/Cave" unique_id=1586128275]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 3, -16)
+radius = 0.6
+height = 6.0
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Pillar1" type="CSGCylinder3D" parent="Geometry/Cave" unique_id=599012107]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 3, -23)
+radius = 0.6
+height = 6.0
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Pillar2" type="CSGCylinder3D" parent="Geometry/Cave" unique_id=19279791]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 3, -16)
+radius = 0.6
+height = 6.0
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Pillar3" type="CSGCylinder3D" parent="Geometry/Cave" unique_id=1282115462]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 3, -23)
+radius = 0.6
+height = 6.0
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Crate" type="CSGBox3D" parent="Geometry/Cave" unique_id=104354074]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, -7)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=729548816]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 1)
+
+[node name="Objects" type="Node3D" parent="." unique_id=67499718]
+
+[node name="VoiceLog01" type="Area3D" parent="Objects" unique_id=1500023844]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -3)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 2
+subtitle = "Day three down here. My lantern's dead. If anyone finds this... don't shout. They hear everything."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog01" unique_id=963214062]
+shape = SubResource("BoxShape3D_8iemx")
+
+[node name="Visual" type="MeshInstance3D" parent="Objects/VoiceLog01" unique_id=1365063565]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, -0.85, 0.5)
+material_override = SubResource("StandardMaterial3D_5jwms")
+mesh = SubResource("SphereMesh_64w2a")
+
+[node name="Pebbles01" type="Area3D" parent="Objects" unique_id=1441788195]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -15)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Pebbles01" unique_id=2063840146]
+shape = SubResource("BoxShape3D_fpun6")
+
+[node name="Visual" type="MeshInstance3D" parent="Objects/Pebbles01" unique_id=1726373496]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35, 0)
+material_override = SubResource("StandardMaterial3D_5jwms")
+mesh = SubResource("SphereMesh_64w2a")
+
+[node name="Checkpoint01" type="Area3D" parent="Objects" unique_id=2041228941]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, -19.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Checkpoint01" unique_id=755550520]
+shape = SubResource("BoxShape3D_wc255")
+
+[node name="Visual" type="MeshInstance3D" parent="Objects/Checkpoint01" unique_id=742852114]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+material_override = SubResource("StandardMaterial3D_5jwms")
+mesh = SubResource("BoxMesh_arp2o")
+
+[node name="VoiceLog05" type="Area3D" parent="Objects" unique_id=80833070]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 1, -19.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 2
+subtitle = "There's one in the hall. It's huge. It goes where the noise is, not where you are. Throw something left. Stay on the right wall."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog05" unique_id=1381776245]
+shape = SubResource("BoxShape3D_ux5qa")
+
+[node name="Visual" type="MeshInstance3D" parent="Objects/VoiceLog05" unique_id=212146020]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.85, 1.2)
+material_override = SubResource("StandardMaterial3D_5jwms")
+mesh = SubResource("SphereMesh_64w2a")
+
+[node name="Checkpoint02" type="Area3D" parent="Objects" unique_id=1330189552]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 1, -27.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Checkpoint02" unique_id=330471711]
+shape = SubResource("BoxShape3D_82cfe")
+
+[node name="Visual" type="MeshInstance3D" parent="Objects/Checkpoint02" unique_id=970822903]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.75, 0)
+material_override = SubResource("StandardMaterial3D_5jwms")
+mesh = SubResource("BoxMesh_arp2o")
+
+[node name="Exit" type="Area3D" parent="Objects" unique_id=1093917360 groups=["exit"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 1, -38)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 3
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Exit" unique_id=419751774]
+shape = SubResource("BoxShape3D_gunhw")
+
+[node name="Visual" type="MeshInstance3D" parent="Objects/Exit" unique_id=916254564]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.5, -1)
+material_override = SubResource("StandardMaterial3D_8gofh")
+mesh = SubResource("BoxMesh_h6wmr")
+
+[node name="Listeners" type="Node3D" parent="." unique_id=1196511665]
+
+[node name="Listener" type="CharacterBody3D" parent="Listeners" unique_id=586611493 groups=["listener"] instance=ExtResource("4_b121j")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 0.1, -22)
+collision_layer = 4
+script = ExtResource("5_8c41q")

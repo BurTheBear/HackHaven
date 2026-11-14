@@ -1,0 +1,38 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/listener.gd" id="1_unf11"]
+[ext_resource type="Shader" path="res://shaders/reveal.gdshader" id="2_6tf88"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_0dvpu"]
+height = 2.2
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_8k7y0"]
+render_priority = 0
+shader = ExtResource("2_6tf88")
+shader_parameter/echo_color = Color(1, 0.23137255, 0.30588236, 1)
+shader_parameter/ping_speed = null
+shader_parameter/ring_width = null
+shader_parameter/afterglow = null
+shader_parameter/grid_scale = 3.0
+shader_parameter/near_glow = 0.0
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_owfik"]
+height = 2.2
+
+[node name="Listener" type="CharacterBody3D" unique_id=586611493 groups=["listener"]]
+collision_layer = 4
+script = ExtResource("1_unf11")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=2023882913]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+shape = SubResource("CapsuleShape3D_0dvpu")
+
+[node name="Body" type="MeshInstance3D" parent="." unique_id=43543549]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+material_override = SubResource("ShaderMaterial_8k7y0")
+mesh = SubResource("CapsuleMesh_owfik")
+
+[node name="Voice" type="AudioStreamPlayer3D" parent="." unique_id=2123625066]
+
+[node name="Breath" type="AudioStreamPlayer3D" parent="." unique_id=1959379579]
+autoplay = true

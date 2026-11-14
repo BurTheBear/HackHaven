@@ -1,0 +1,34 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/pebble.gd" id="1_421eo"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_v4qhv"]
+friction = 0.6
+bounce = 0.45
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_0gltt"]
+radius = 0.08
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5jwms"]
+shading_mode = 0
+albedo_color = Color(0.8, 0.627451, 0.2164706, 0.8)
+
+[sub_resource type="SphereMesh" id="SphereMesh_cxl6a"]
+radius = 0.08
+height = 0.16
+
+[node name="Pebble" type="RigidBody3D" unique_id=450831544]
+collision_layer = 8
+mass = 0.1
+physics_material_override = SubResource("PhysicsMaterial_v4qhv")
+script = ExtResource("1_421eo")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=640621725]
+shape = SubResource("SphereShape3D_0gltt")
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=385169848]
+material_override = SubResource("StandardMaterial3D_5jwms")
+mesh = SubResource("SphereMesh_cxl6a")
+
+[node name="Click" type="AudioStreamPlayer3D" parent="." unique_id=267163297]
+bus = &"Cave"
