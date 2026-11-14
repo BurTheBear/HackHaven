@@ -1,0 +1,1168 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/level.gd" id="1_lvl2"]
+[ext_resource type="Shader" path="res://shaders/reveal.gdshader" id="2_shdr"]
+[ext_resource type="Script" path="res://scripts/trigger.gd" id="3_trig"]
+[ext_resource type="PackedScene" path="res://scenes/listener.tscn" id="4_lstn"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_rev2"]
+render_priority = 0
+shader = ExtResource("2_shdr")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_t1rx8"]
+albedo_color = Color(0.45, 0.38, 0.31, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_wood"]
+albedo_color = Color(0.46, 0.31, 0.17, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_rust"]
+albedo_color = Color(0.43, 0.22, 0.12, 1.0)
+metallic = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_rope"]
+albedo_color = Color(0.72, 0.62, 0.42, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_metal"]
+albedo_color = Color(0.36, 0.37, 0.4, 1.0)
+metallic = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Mat_cloth"]
+albedo_color = Color(0.2, 0.27, 0.36, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_skin"]
+albedo_color = Color(0.62, 0.52, 0.45, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="Mat_brass"]
+albedo_color = Color(0.72, 0.56, 0.25, 1.0)
+metallic = 0.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5jwms"]
+shading_mode = 0
+albedo_color = Color(0.8, 0.62745, 0.21647, 1.0)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_day"]
+shading_mode = 0
+albedo_color = Color(0.85, 0.9, 1.0, 1.0)
+
+[sub_resource type="BoxMesh" id="BoxMesh_day"]
+size = Vector3(4.5, 6.0, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_sky"]
+size = Vector3(4.6, 0.1, 4.6)
+
+[sub_resource type="PrismMesh" id="PrismMesh_shard"]
+size = Vector3(0.12, 0.22, 0.04)
+
+[sub_resource type="StandardMaterial3D" id="Mat_water"]
+transparency = 1
+albedo_color = Color(0.18, 0.36, 0.45, 0.75)
+metallic = 0.3
+roughness = 0.1
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_PoolWater"]
+material = SubResource("Mat_water")
+size = Vector2(7.5, 9.5)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_GalleryWater"]
+material = SubResource("Mat_water")
+size = Vector2(24.0, 36.0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ChannelWater"]
+material = SubResource("Mat_water")
+size = Vector2(10.5, 3.0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_CornerWater"]
+material = SubResource("Mat_water")
+size = Vector2(6.0, 6.0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_CisternWater"]
+material = SubResource("Mat_water")
+size = Vector2(12.0, 15.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5p5_3p0_5p5"]
+size = Vector3(5.5, 3.0, 5.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2p4_3p0_2p4"]
+size = Vector3(2.4, 3.0, 2.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2p0_2p0_2p0"]
+size = Vector3(2.0, 2.0, 2.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_3p0_1p2_3p0"]
+size = Vector3(3.0, 1.2, 3.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_3p0_3p0_3p0"]
+size = Vector3(3.0, 3.0, 3.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4p0_3p0_1p5"]
+size = Vector3(4.0, 3.0, 1.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_3p5_3p0_1p5"]
+size = Vector3(3.5, 3.0, 1.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1p6_2p0_1p6"]
+size = Vector3(1.6, 2.0, 1.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1p5_3p0_3p5"]
+size = Vector3(1.5, 3.0, 3.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_5p0_3p0_1p5"]
+size = Vector3(5.0, 3.0, 1.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4p0_3p0_3p0"]
+size = Vector3(4.0, 3.0, 3.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7p5_1p4_9p5"]
+size = Vector3(7.5, 1.4, 9.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_24p0_1p4_36p0"]
+size = Vector3(24.0, 1.4, 36.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_10p5_1p4_3p0"]
+size = Vector3(10.5, 1.4, 3.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6p0_1p4_6p0"]
+size = Vector3(6.0, 1.4, 6.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_12p0_1p4_15p5"]
+size = Vector3(12.0, 1.4, 15.5)
+
+[node name="Level" type="Node3D"]
+script = ExtResource("1_lvl2")
+reveal_material = SubResource("ShaderMaterial_rev2")
+
+[node name="Geometry" type="Node3D" parent="."]
+
+[node name="Cave" type="CSGCombiner3D" parent="Geometry"]
+use_collision = true
+
+[node name="Rock" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 2.0, -87.5)
+size = Vector3(64.0, 24.0, 195.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StartRoom" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0)
+operation = 2
+size = Vector3(6.0, 4.0, 6.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Sinkhole" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 9.75, 0.0)
+operation = 2
+size = Vector3(2.5, 12.5, 2.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Tunnel1" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.75, -9.25)
+operation = 2
+size = Vector3(3.0, 3.5, 13.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Pool" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.25, 2.25, -20.25)
+operation = 2
+size = Vector3(7.5, 4.5, 9.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="EastSpur" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.25, 1.75, -20.0)
+operation = 2
+size = Vector3(9.5, 3.5, 3.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Tunnel2" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.75, -31.25)
+operation = 2
+size = Vector3(3.0, 3.5, 13.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Landing" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, -41.0)
+operation = 2
+size = Vector3(7.0, 4.0, 7.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Gate" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.75, -47.25)
+operation = 2
+size = Vector3(3.0, 3.5, 6.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Gallery" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.75, -68.0)
+operation = 2
+size = Vector3(24.0, 7.5, 36.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="WestRoom" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -13.25, 1.75, -63.5)
+operation = 2
+size = Vector3(7.5, 3.5, 7.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="GalleryExit" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 1.75, -90.75)
+operation = 2
+size = Vector3(3.0, 3.5, 10.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Refuge" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 2.0, -99.5)
+operation = 2
+size = Vector3(8.0, 4.0, 8.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Channel" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.25, 1.75, -99.5)
+operation = 2
+size = Vector3(12.5, 3.5, 3.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Corner" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 2.0, -99.5)
+operation = 2
+size = Vector3(6.0, 4.0, 6.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Cistern" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 3.0, -110.0)
+operation = 2
+size = Vector3(12.0, 6.0, 16.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="RampOut" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 0.97014, -0.24254, 0.0, 0.24254, 0.97014, -3.5, 3.44029, -124.54571)
+operation = 2
+size = Vector3(3.0, 3.5, 14.36932)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Upper" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 4.75, -134.25)
+operation = 2
+size = Vector3(3.0, 3.5, 12.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Nook" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -6.5, 4.75, -133.5)
+operation = 2
+size = Vector3(4.0, 3.5, 5.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Gallery2" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 6.0, -145.5)
+operation = 2
+size = Vector3(20.0, 6.0, 11.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="ExitRun" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 4.75, -158.25)
+operation = 2
+size = Vector3(3.0, 3.5, 15.5)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="ExitShaft" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 12.5, -168.0)
+operation = 2
+size = Vector3(5.0, 19.0, 5.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Stalagmite0" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -4.0, 1.0, -58.0)
+radius = 0.6
+height = 2.0
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StalagmiteTip0" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -4.0, 2.4, -58.0)
+radius = 0.27
+height = 0.9
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Stalagmite1" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 7.0, 1.0, -61.0)
+radius = 0.7
+height = 2.0
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StalagmiteTip1" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 7.0, 2.4, -61.0)
+radius = 0.315
+height = 0.9
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Stalagmite2" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -5.5, 1.0, -71.0)
+radius = 0.55
+height = 2.0
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StalagmiteTip2" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -5.5, 2.4, -71.0)
+radius = 0.2475
+height = 0.9
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Stalagmite3" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 9.5, 1.0, -75.0)
+radius = 0.6
+height = 2.0
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StalagmiteTip3" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 9.5, 2.4, -75.0)
+radius = 0.27
+height = 0.9
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Stalagmite4" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 1.0, -80.0)
+radius = 0.5
+height = 2.0
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StalagmiteTip4" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 2.4, -80.0)
+radius = 0.225
+height = 0.9
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Stalagmite5" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.5, 1.0, -55.0)
+radius = 0.45
+height = 2.0
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="StalagmiteTip5" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.5, 2.4, -55.0)
+radius = 0.2025
+height = 0.9
+sides = 8
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="Landmarks" type="Node3D" parent="Geometry"]
+
+[node name="FallenRope" type="CSGCombiner3D" parent="Geometry/Landmarks" groups=["landmark"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+
+[node name="Hanging" type="CSGCylinder3D" parent="Geometry/Landmarks/FallenRope"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.3, 8.45, 0.4)
+radius = 0.035
+height = 12.1
+sides = 6
+material = SubResource("Mat_rope")
+
+[node name="Frayed" type="CSGCylinder3D" parent="Geometry/Landmarks/FallenRope"]
+transform = Transform3D(0.9703, -0.24192, 0.0, 0.24192, 0.9703, 0.0, 0.0, 0.0, 1.0, 0.32, 2.25, 0.42)
+radius = 0.02
+height = 0.35
+sides = 5
+material = SubResource("Mat_rope")
+
+[node name="Coil1" type="CSGTorus3D" parent="Geometry/Landmarks/FallenRope"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.9, 0.05, 0.1)
+inner_radius = 0.2
+outer_radius = 0.29
+sides = 10
+ring_sides = 5
+material = SubResource("Mat_rope")
+
+[node name="Coil2" type="CSGTorus3D" parent="Geometry/Landmarks/FallenRope"]
+transform = Transform3D(0.99452, -0.10453, 0.0, 0.10351, 0.98484, -0.13917, 0.01455, 0.13841, 0.99027, 0.95, 0.12, 0.05)
+inner_radius = 0.17
+outer_radius = 0.26
+sides = 10
+ring_sides = 5
+material = SubResource("Mat_rope")
+
+[node name="Tail" type="CSGCylinder3D" parent="Geometry/Landmarks/FallenRope"]
+transform = Transform3D(0.86603, 0.5, 0.0, 0.0, 0.0, -1.0, -0.5, 0.86603, 0.0, 0.45, 0.04, -0.55)
+radius = 0.035
+height = 1.3
+sides = 6
+material = SubResource("Mat_rope")
+
+[node name="FallenLantern" type="CSGCombiner3D" parent="Geometry/Landmarks" groups=["landmark"]]
+transform = Transform3D(0.81915, 0.0, 0.57358, 0.0, 1.0, 0.0, -0.57358, 0.0, 0.81915, 1.6, 0.0, 0.3)
+
+[node name="Body" type="CSGCylinder3D" parent="Geometry/Landmarks/FallenLantern"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.13, 0.0)
+radius = 0.12
+height = 0.3
+sides = 10
+material = SubResource("Mat_brass")
+
+[node name="Cap" type="CSGCylinder3D" parent="Geometry/Landmarks/FallenLantern"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.19, 0.13, 0.0)
+radius = 0.08
+height = 0.08
+sides = 10
+material = SubResource("Mat_brass")
+
+[node name="Base" type="CSGCylinder3D" parent="Geometry/Landmarks/FallenLantern"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -0.17, 0.13, 0.0)
+radius = 0.14
+height = 0.04
+sides = 10
+material = SubResource("Mat_brass")
+
+[node name="Handle" type="CSGTorus3D" parent="Geometry/Landmarks/FallenLantern"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.28, 0.13, 0.0)
+inner_radius = 0.07
+outer_radius = 0.09
+sides = 10
+ring_sides = 4
+material = SubResource("Mat_brass")
+
+[node name="GlassHole" type="CSGBox3D" parent="Geometry/Landmarks/FallenLantern"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 0.0)
+size = Vector3(0.18, 0.12, 0.3)
+operation = 2
+
+[node name="SunkenCart" type="CSGCombiner3D" parent="Geometry/Landmarks" groups=["landmark"]]
+transform = Transform3D(0.77906, -0.25313, -0.57358, 0.30902, 0.95106, 0.0, 0.5455, -0.17724, 0.81915, -6.5, -0.25, -76.5)
+use_collision = true
+
+[node name="Tub" type="CSGBox3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.75, 0.0)
+size = Vector3(1.3, 0.8, 2.0)
+material = SubResource("Mat_rust")
+
+[node name="Hollow" type="CSGBox3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.95, 0.0)
+size = Vector3(1.1, 0.8, 1.8)
+operation = 2
+material = SubResource("Mat_rust")
+
+[node name="Lip" type="CSGBox3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.13, 0.0)
+size = Vector3(1.4, 0.06, 2.1)
+material = SubResource("Mat_rust")
+
+[node name="LipHole" type="CSGBox3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.13, 0.0)
+size = Vector3(1.1, 0.1, 1.8)
+operation = 2
+material = SubResource("Mat_rust")
+
+[node name="Wheel0" type="CSGCylinder3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.68, 0.25, 0.6)
+radius = 0.25
+height = 0.1
+sides = 10
+material = SubResource("Mat_metal")
+
+[node name="Wheel1" type="CSGCylinder3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -0.68, 0.25, 0.6)
+radius = 0.25
+height = 0.1
+sides = 10
+material = SubResource("Mat_metal")
+
+[node name="Wheel2" type="CSGCylinder3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.68, 0.25, -0.6)
+radius = 0.25
+height = 0.1
+sides = 10
+material = SubResource("Mat_metal")
+
+[node name="Wheel3" type="CSGCylinder3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -0.68, 0.25, -0.6)
+radius = 0.25
+height = 0.1
+sides = 10
+material = SubResource("Mat_metal")
+
+[node name="Axle0" type="CSGBox3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, 0.6)
+size = Vector3(1.3, 0.06, 0.06)
+material = SubResource("Mat_metal")
+
+[node name="Axle1" type="CSGBox3D" parent="Geometry/Landmarks/SunkenCart"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, -0.6)
+size = Vector3(1.3, 0.06, 0.06)
+material = SubResource("Mat_metal")
+
+[node name="Pipes" type="CSGCombiner3D" parent="Geometry/Landmarks" groups=["landmark"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+
+[node name="PipeLong" type="CSGCylinder3D" parent="Geometry/Landmarks/Pipes"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.6, 4.6, -110.0)
+radius = 0.28
+height = 15.5
+sides = 10
+material = SubResource("Mat_rust")
+
+[node name="PipeDrop" type="CSGCylinder3D" parent="Geometry/Landmarks/Pipes"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -1.6, 2.4, -104.5)
+radius = 0.2
+height = 4.4
+sides = 10
+material = SubResource("Mat_rust")
+
+[node name="Valve" type="CSGTorus3D" parent="Geometry/Landmarks/Pipes"]
+transform = Transform3D(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.85, 2.0, -104.5)
+inner_radius = 0.18
+outer_radius = 0.26
+sides = 10
+ring_sides = 5
+material = SubResource("Mat_metal")
+
+[node name="ShaftLadder" type="CSGCombiner3D" parent="Geometry/Landmarks" groups=["landmark"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 0.98598, 0.16686, 0.0, -0.16686, 0.98598, 8.0, 6.25, -169.85)
+
+[node name="RailL" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -0.25, 0.0, 0.0)
+size = Vector3(0.07, 6.59242, 0.07)
+material = SubResource("Mat_wood")
+
+[node name="RailR" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.25, 0.0, 0.0)
+size = Vector3(0.07, 6.59242, 0.07)
+material = SubResource("Mat_wood")
+
+[node name="Rung0" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -2.99621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung1" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -2.64621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung2" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -2.29621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung3" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.94621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung4" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.59621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung5" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.24621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung6" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -0.89621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung7" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -0.54621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung8" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, -0.19621, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung9" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.15379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung10" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.50379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung11" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.85379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung12" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.20379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung13" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.55379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung14" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.90379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung15" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.25379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung16" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.60379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Rung17" type="CSGBox3D" parent="Geometry/Landmarks/ShaftLadder"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.95379, 0.0)
+size = Vector3(0.5, 0.05, 0.05)
+material = SubResource("Mat_wood")
+
+[node name="Props" type="Node3D" parent="Geometry"]
+
+[node name="Crate" type="CSGBox3D" parent="Geometry/Props" groups=["shifting"]]
+transform = Transform3D(0.90631, 0.0, 0.42262, 0.0, 1.0, 0.0, -0.42262, 0.0, 0.90631, 2.2, 0.4, -2.0)
+size = Vector3(0.8, 0.8, 0.8)
+use_collision = true
+material = SubResource("Mat_wood")
+
+[node name="Barrel" type="CSGCylinder3D" parent="Geometry/Props" groups=["shifting"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 12.8, 0.45, -101.8)
+radius = 0.3
+height = 0.9
+sides = 10
+use_collision = true
+material = SubResource("Mat_wood")
+
+[node name="CrateHigh" type="CSGBox3D" parent="Geometry/Props" groups=["shifting"]]
+transform = Transform3D(0.96593, 0.0, -0.25882, 0.0, 1.0, 0.0, 0.25882, 0.0, 0.96593, -9.0, 3.35, -149.6)
+size = Vector3(0.7, 0.7, 0.7)
+use_collision = true
+material = SubResource("Mat_wood")
+
+[node name="Water" type="Node3D" parent="Geometry"]
+
+[node name="PoolWater" type="MeshInstance3D" parent="Geometry/Water"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.25, 0.22, -20.25)
+mesh = SubResource("PlaneMesh_PoolWater")
+metadata/reveal_params = {"ping_speed": 9.0, "afterglow": 3.5, "ripple": 1.0, "echo_memory": 0.1, "echo_color": Color(0.35, 0.72, 1, 1)}
+
+[node name="GalleryWater" type="MeshInstance3D" parent="Geometry/Water"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 0.22, -68.0)
+mesh = SubResource("PlaneMesh_GalleryWater")
+metadata/reveal_params = {"ping_speed": 9.0, "afterglow": 3.5, "ripple": 1.0, "echo_memory": 0.1, "echo_color": Color(0.35, 0.72, 1, 1)}
+
+[node name="ChannelWater" type="MeshInstance3D" parent="Geometry/Water"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.25, 0.22, -99.5)
+mesh = SubResource("PlaneMesh_ChannelWater")
+metadata/reveal_params = {"ping_speed": 9.0, "afterglow": 3.5, "ripple": 1.0, "echo_memory": 0.1, "echo_color": Color(0.35, 0.72, 1, 1)}
+
+[node name="CornerWater" type="MeshInstance3D" parent="Geometry/Water"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 0.22, -99.5)
+mesh = SubResource("PlaneMesh_CornerWater")
+metadata/reveal_params = {"ping_speed": 9.0, "afterglow": 3.5, "ripple": 1.0, "echo_memory": 0.1, "echo_color": Color(0.35, 0.72, 1, 1)}
+
+[node name="CisternWater" type="MeshInstance3D" parent="Geometry/Water"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 0.22, -110.25)
+mesh = SubResource("PlaneMesh_CisternWater")
+metadata/reveal_params = {"ping_speed": 9.0, "afterglow": 3.5, "ripple": 1.0, "echo_memory": 0.1, "echo_color": Color(0.35, 0.72, 1, 1)}
+
+[node name="Arrows" type="Node3D" parent="Geometry"]
+
+[node name="ArrowPool" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -0.5, 0.02, -24.0)
+metadata/yaw = 0.0
+
+[node name="ArrowLanding" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.02, -43.5)
+metadata/yaw = 0.0
+
+[node name="ArrowGalleryA" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 12.5, 0.02, -60.0)
+metadata/yaw = 0.0
+
+[node name="ArrowGalleryB" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 12.5, 0.02, -78.0)
+metadata/yaw = 0.0
+
+[node name="ArrowRefuge" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 7.5, 0.02, -99.5)
+metadata/yaw = 90.0
+
+[node name="ArrowCorner" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 0.02, -100.5)
+metadata/yaw = 0.0
+
+[node name="ArrowCistern" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -2.5, 0.02, -112.0)
+metadata/yaw = 0.0
+
+[node name="ArrowUpper" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 3.02, -139.0)
+metadata/yaw = 0.0
+
+[node name="ArrowGallery2" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.0, 3.02, -146.0)
+metadata/yaw = -60.0
+
+[node name="ArrowWrongSpur" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.5, 0.02, -20.0)
+metadata/yaw = -90.0
+
+[node name="ArrowWrongWest" type="Marker3D" parent="Geometry/Arrows"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -14.5, 0.02, -63.5)
+metadata/yaw = 90.0
+
+[node name="PlayerSpawn" type="Marker3D" parent="."]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 1.0)
+
+[node name="IntroCamera" type="Marker3D" parent="." groups=["cutscene_marker"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.6, 1.4, 2.2)
+
+[node name="ShaftTop" type="Marker3D" parent="." groups=["cutscene_marker"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 13.5, -168.0)
+
+[node name="Objects" type="Node3D" parent="."]
+
+[node name="Surfaces" type="Node3D" parent="."]
+
+[node name="ZoneSpillway" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.5, 0.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 6
+floor_offset = -1.5
+build_visual = false
+zone_name = "THE SPILLWAY"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/ZoneSpillway"]
+shape = SubResource("BoxShape3D_5p5_3p0_5p5")
+
+[node name="VoiceLog01" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -1.8, 1.0, -1.8)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 2
+floor_offset = -1.0
+log_index = 1
+subtitle = "Jonah here. Mara's partner. They called off the search. I didn't. The north sink is flooded, but it's the only way down."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog01"]
+shape = SubResource("BoxShape3D_2p4_3p0_2p4")
+
+[node name="VoiceLog02" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -2.4, 1.0, -17.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 2
+floor_offset = -1.0
+log_index = 2
+subtitle = "Water carries sound strange down here. The echo crawls across it, slow. Wait for it to come back."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog02"]
+shape = SubResource("BoxShape3D_2p4_3p0_2p4")
+
+[node name="Pebbles01" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 11.6, 1.0, -20.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 1
+floor_offset = -1.0
+pebble_amount = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Pebbles01"]
+shape = SubResource("BoxShape3D_2p0_2p0_2p0")
+
+[node name="Pebbles01Gravel" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 11.6, 0.5, -20.0)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "gravel"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/Pebbles01Gravel"]
+shape = SubResource("BoxShape3D_3p0_1p2_3p0")
+
+[node name="VoiceLog03" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 9.4, 1.0, -20.2)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 2
+floor_offset = -1.0
+log_index = 3
+subtitle = "Mara scratches a little cross on her stones. Found three of them here. She came this way."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog03"]
+shape = SubResource("BoxShape3D_2p4_3p0_2p4")
+
+[node name="Checkpoint01" type="Area3D" parent="Objects" groups=["checkpoint"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, -41.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 0
+floor_offset = -1.0
+yaw_degrees = 0.0
+route_order = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Checkpoint01"]
+shape = SubResource("BoxShape3D_3p0_3p0_3p0")
+
+[node name="VoiceLog04" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.4, 1.0, -39.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 2
+floor_offset = -1.0
+log_index = 4
+subtitle = "Something's wading in the big chamber ahead. It turns toward every sound. Throw wide, stay on the right."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog04"]
+shape = SubResource("BoxShape3D_2p4_3p0_2p4")
+
+[node name="ZoneGallery" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.5, -46.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 6
+floor_offset = -1.5
+build_visual = false
+zone_name = "THE DROWNED GALLERY"
+event_name = "hall_silence"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/ZoneGallery"]
+shape = SubResource("BoxShape3D_4p0_3p0_1p5")
+
+[node name="HintThrow" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.5, -48.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 5
+floor_offset = -1.5
+build_visual = false
+prompt_id = "throw"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/HintThrow"]
+shape = SubResource("BoxShape3D_3p5_3p0_1p5")
+
+[node name="Pebbles02" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -15.5, 1.0, -61.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 1
+floor_offset = -1.0
+pebble_amount = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Pebbles02"]
+shape = SubResource("BoxShape3D_2p0_2p0_2p0")
+
+[node name="Pebbles02Gravel" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -15.5, 0.5, -61.5)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "gravel"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/Pebbles02Gravel"]
+shape = SubResource("BoxShape3D_3p0_1p2_3p0")
+
+[node name="VoiceLog05" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -15.3, 1.0, -65.2)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 2
+floor_offset = -1.0
+log_index = 5
+subtitle = "I keep hearing her in the drips. I know it isn't her. I know it isn't."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog05"]
+shape = SubResource("BoxShape3D_2p4_3p0_2p4")
+
+[node name="Crystal01" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -8.6, 1.0, -84.6)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 4
+floor_offset = -1.0
+upgrade = 1
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Crystal01"]
+shape = SubResource("BoxShape3D_1p6_2p0_1p6")
+
+[node name="Checkpoint02" type="Area3D" parent="Objects" groups=["checkpoint"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 1.0, -99.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 0
+floor_offset = -1.0
+yaw_degrees = 90.0
+route_order = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Checkpoint02"]
+shape = SubResource("BoxShape3D_3p0_3p0_3p0")
+
+[node name="Pebbles03" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 12.6, 1.0, -97.2)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 1
+floor_offset = -1.0
+pebble_amount = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Pebbles03"]
+shape = SubResource("BoxShape3D_2p0_2p0_2p0")
+
+[node name="Pebbles03Gravel" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 12.6, 0.5, -97.2)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "gravel"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/Pebbles03Gravel"]
+shape = SubResource("BoxShape3D_3p0_1p2_3p0")
+
+[node name="VoiceLog06" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 7.4, 1.0, -102.2)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 2
+floor_offset = -1.0
+log_index = 6
+subtitle = "Through. My hands are numb from the cold. There's a cistern past the channel, and something sleeping in it."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog06"]
+shape = SubResource("BoxShape3D_2p4_3p0_2p4")
+
+[node name="ZoneUndertow" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.5, 1.5, -99.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 6
+floor_offset = -1.5
+build_visual = false
+zone_name = "THE UNDERTOW"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/ZoneUndertow"]
+shape = SubResource("BoxShape3D_1p5_3p0_3p5")
+
+[node name="HintSneak" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 1.5, -101.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 5
+floor_offset = -1.5
+build_visual = false
+prompt_id = "sneak"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/HintSneak"]
+shape = SubResource("BoxShape3D_5p0_3p0_1p5")
+
+[node name="Crystal02" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -12.1, 1.0, -117.1)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 4
+floor_offset = -1.0
+upgrade = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Crystal02"]
+shape = SubResource("BoxShape3D_1p6_2p0_1p6")
+
+[node name="Checkpoint03" type="Area3D" parent="Objects" groups=["checkpoint"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 4.0, -133.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 0
+floor_offset = -1.0
+yaw_degrees = 0.0
+route_order = 3
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Checkpoint03"]
+shape = SubResource("BoxShape3D_3p0_3p0_3p0")
+
+[node name="Pebbles04" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.3, 4.0, -132.2)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 1
+floor_offset = -1.0
+pebble_amount = 2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Pebbles04"]
+shape = SubResource("BoxShape3D_2p0_2p0_2p0")
+
+[node name="Pebbles04Gravel" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.3, 3.5, -132.2)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "gravel"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/Pebbles04Gravel"]
+shape = SubResource("BoxShape3D_3p0_1p2_3p0")
+
+[node name="VoiceLog07" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.2, 4.0, -134.8)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 2
+floor_offset = -1.0
+log_index = 7
+subtitle = "Wind. Real wind. If you find this, Mara... I tried. Go up. Don't look back."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog07"]
+shape = SubResource("BoxShape3D_2p4_3p0_2p4")
+
+[node name="HintRun" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 4.5, -153.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 5
+floor_offset = -1.5
+build_visual = false
+prompt_id = "run"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/HintRun"]
+shape = SubResource("BoxShape3D_3p5_3p0_1p5")
+
+[node name="Exit" type="Area3D" parent="Objects" groups=["exit"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 4.0, -168.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 3
+floor_offset = -1.0
+build_visual = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Exit"]
+shape = SubResource("BoxShape3D_4p0_3p0_3p0")
+
+[node name="Daylight" type="MeshInstance3D" parent="Objects/Exit" groups=["daylight"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, -2.35)
+material_override = SubResource("StandardMaterial3D_day")
+mesh = SubResource("BoxMesh_day")
+
+[node name="Sky" type="MeshInstance3D" parent="Objects/Exit" groups=["daylight"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 9.7, 0.0)
+material_override = SubResource("StandardMaterial3D_day")
+mesh = SubResource("BoxMesh_sky")
+
+[node name="PoolWaterArea" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.25, 0.5, -20.25)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "water"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/PoolWaterArea"]
+shape = SubResource("BoxShape3D_7p5_1p4_9p5")
+
+[node name="GalleryWaterArea" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 0.5, -68.0)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "water"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/GalleryWaterArea"]
+shape = SubResource("BoxShape3D_24p0_1p4_36p0")
+
+[node name="ChannelWaterArea" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.25, 0.5, -99.5)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "water"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/ChannelWaterArea"]
+shape = SubResource("BoxShape3D_10p5_1p4_3p0")
+
+[node name="CornerWaterArea" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 0.5, -99.5)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "water"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/CornerWaterArea"]
+shape = SubResource("BoxShape3D_6p0_1p4_6p0")
+
+[node name="CisternWaterArea" type="Area3D" parent="Surfaces" groups=["surface"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 0.5, -110.25)
+collision_layer = 0
+collision_mask = 2
+metadata/surface = "water"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/CisternWaterArea"]
+shape = SubResource("BoxShape3D_12p0_1p4_15p5")
+
+[node name="Sounds" type="Node3D" parent="."]
+
+[node name="Drip00" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 3.0, -9.0)
+
+[node name="Drip01" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 3.5, -20.0)
+
+[node name="Drip02" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 3.0, -31.0)
+
+[node name="Drip03" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 6.0, -60.0)
+
+[node name="Drip04" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 12.0, 6.0, -70.0)
+
+[node name="Drip05" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 3.0, -90.0)
+
+[node name="Drip06" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 3.0, -99.5)
+
+[node name="Drip07" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -4.0, 5.0, -110.0)
+
+[node name="Drip08" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 5.5, -125.0)
+
+[node name="Drip09" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 5.5, -136.0)
+
+[node name="Drip10" type="Marker3D" parent="Sounds" groups=["drip_source"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 5.5, -158.0)
+
+[node name="Listeners" type="Node3D" parent="."]
+
+[node name="GalleryListener" parent="Listeners" instance=ExtResource("4_lstn")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 0.1, -60.0)
+patrol_offset = Vector3(0.0, 0.0, -20.0)
+
+[node name="Sleeper" parent="Listeners" instance=ExtResource("4_lstn")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -9.5, 0.1, -110.0)
+patrol_offset = Vector3(0.0, 0.0, 0.0)
+asleep = true
+
+[node name="Stalker" parent="Listeners" instance=ExtResource("4_lstn")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -6.0, 3.1, -144.0)
+patrol_offset = Vector3(12.0, 0.0, 0.0)
+patrol_speed = 1.8
+investigate_speed = 4.0
+alert_time = 1.1

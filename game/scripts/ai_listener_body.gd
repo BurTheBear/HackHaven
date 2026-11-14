@@ -1,0 +1,121 @@
+extends RefCounted
+## Builds a Listener's body out of primitives: a hunched torso with a ridge of
+## vertebrae, a small head pushed forward on a long neck, a hanging jaw, and
+## long thin arms whose fingers almost drag on the floor. Every part uses the
+## red reveal material, so it only exists in echoes. Feet at the root's
+## origin, facing -Z. Used by listener.gd and by the director's phantoms.
+
+const RED := Color(1.0, 0.23, 0.31)
+
+
+## Red reveal material. Its afterglow is longer than the cave's, so a
+## Listener's outline lingers after the walls around it have faded.
+static func make_material() -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/reveal.gdshader") as Shader
+	mat.set_shader_parameter("echo_color", RED)
+	mat.set_shader_parameter("grid_scale", 3.0)
+	mat.set_shader_parameter("near_glow", 0.0)
+	mat.set_shader_parameter("afterglow", 3.2)
+	return mat
+
+
+## Builds the body under `root` and returns the head pivot (rotate it to look around).
+static func build(root: Node3D, mat: Material) -> Node3D:
+	var lean := deg_to_rad(-52.0)
+	var spine := Vector3(0.0, cos(lean), sin(lean))  # torso axis, leaning forward
+	var back := Vector3(0.0, -sin(lean), cos(lean))  # out of the hunched back
+	var hips := Vector3(0.0, 0.95, 0.08)
+	var chest := hips + spine * 0.85
+	var sides: Array[float] = [-1.0, 1.0]
+
+	# Bent, bony legs with long feet.
+	for side in sides:
+		var hip := hips + Vector3(0.16 * side, 0.0, 0.0)
+		var knee := Vector3(0.2 * side, 0.5, -0.12)
+		var foot := Vector3(0.22 * side, 0.06, 0.05)
+		_limb(root, hip, knee, 0.085, mat)
+		_limb(root, knee, foot, 0.07, mat)
+		_ball(root, foot + Vector3(0.0, 0.0, -0.08), 0.07, Vector3(1.0, 0.6, 1.8), mat)
+
+	# Hunched torso and pelvis.
+	_limb(root, hips, chest, 0.24, mat)
+	_ball(root, hips, 0.2, Vector3(1.2, 0.9, 1.0), mat)
+	# A ridge of vertebrae along the curved back.
+	for k in 6:
+		var u := float(k) / 5.0
+		var p := hips.lerp(chest, u) + back * (0.22 + 0.05 * sin(u * PI))
+		_ball(root, p, 0.055, Vector3.ONE, mat)
+	# Wide, bony shoulders.
+	var shoulders := chest + back * 0.05
+	_limb(root, shoulders + Vector3(-0.34, -0.02, 0.0), shoulders + Vector3(0.34, -0.02, 0.0), 0.08, mat)
+
+	# Long neck reaching forward, and a small head pushed out in front.
+	var neck_end := chest + Vector3(0.0, 0.02, -0.3)
+	_limb(root, chest, neck_end, 0.06, mat)
+	var head := Node3D.new()
+	head.name = "Head"
+	root.add_child(head)
+	head.position = neck_end
+	_ball(head, Vector3(0.0, 0.02, -0.1), 0.12, Vector3(0.85, 0.9, 1.35), mat)
+	var jaw := _ball(head, Vector3(0.0, -0.08, -0.15), 0.07, Vector3(0.9, 0.45, 1.6), mat)
+	jaw.rotation.x = deg_to_rad(-18.0)  # hanging open
+
+	# Long thin arms; three splayed fingers each, almost touching the floor.
+	for side in sides:
+		var shoulder := shoulders + Vector3(0.36 * side, -0.04, 0.0)
+		var elbow := Vector3(0.46 * side, 0.85, -0.55)
+		var wrist := Vector3(0.42 * side, 0.2, -0.72)
+		_limb(root, shoulder, elbow, 0.055, mat)
+		_limb(root, elbow, wrist, 0.045, mat)
+		for f in 3:
+			var spread := (float(f) - 1.0) * 0.07
+			var tip := wrist + Vector3(spread + 0.03 * side, -0.17, -0.06 + absf(spread) * 0.3)
+			_limb(root, wrist, tip, 0.016, mat)
+	return head
+
+
+## A capsule from a to b.
+static func _limb(parent: Node3D, a: Vector3, b: Vector3, radius: float, mat: Material) -> MeshInstance3D:
+	var mesh := CapsuleMesh.new()
+	mesh.radius = radius
+	mesh.height = a.distance_to(b) + radius * 2.0
+	mesh.radial_segments = 10
+	mesh.rings = 3
+	var part := _part(parent, mesh, mat)
+	part.position = (a + b) * 0.5
+	part.basis = _y_to(b - a)
+	return part
+
+
+## A (squashed) sphere.
+static func _ball(parent: Node3D, pos: Vector3, radius: float, squash: Vector3, mat: Material) -> MeshInstance3D:
+	var mesh := SphereMesh.new()
+	mesh.radius = radius
+	mesh.height = radius * 2.0
+	mesh.radial_segments = 12
+	mesh.rings = 6
+	var part := _part(parent, mesh, mat)
+	part.position = pos
+	part.scale = squash
+	return part
+
+
+static func _part(parent: Node3D, mesh: Mesh, mat: Material) -> MeshInstance3D:
+	var part := MeshInstance3D.new()
+	part.mesh = mesh
+	part.material_override = mat
+	part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(part)
+	return part
+
+
+## A rotation that turns +Y onto `dir` (capsules are built along +Y).
+static func _y_to(dir: Vector3) -> Basis:
+	var y := dir.normalized()
+	var ref := Vector3.FORWARD
+	if absf(y.dot(ref)) > 0.95:
+		ref = Vector3.RIGHT
+	var x := ref.cross(y).normalized()
+	var z := x.cross(y).normalized()
+	return Basis(x, y, z)

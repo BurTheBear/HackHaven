@@ -1,5 +1,8 @@
 // ECHO reveal shader: surfaces are black except where a ping's ring passes.
 // Ping data comes from global shader parameters set by the Echo autoload.
+// Slots 0-3 are the player's pings (radius ~6 = a whisper), 4-7 pebble pings.
+// Kept cheap: inactive slots and points the ring hasn't reached return early,
+// and every slot is a few ALU ops (no loops, no textures).
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
@@ -21,6 +24,7 @@ global uniform float ping_radius_6;
 global uniform float ping_radius_7;
 global uniform vec3 player_pos;
 global uniform float step_glow;
+global uniform float hint_glow;
 
 uniform vec3 echo_color : source_color = vec3(0.24, 0.96, 1.0);
 uniform float ping_speed = 18.0;
@@ -28,6 +32,23 @@ uniform float ring_width = 1.2;
 uniform float afterglow = 2.0;
 uniform float grid_scale = 1.0;
 uniform float near_glow = 0.35;
+// The afterglow stutters a little as it dies, like a failing light.
+uniform float flicker = 0.35;
+// Extras below default to OFF so Listener / phantom materials (which don't set
+// them) look exactly as before. level.gd switches them on for cave materials.
+// Echo memory: a very faint, long-lived trace of what your echoes touched.
+uniform float echo_memory = 0.0;
+uniform float memory_time = 15.0;
+// Always-on floor outline around the player, scaled by Settings.hint_glow.
+uniform float floor_hint = 0.0;
+// How gold pebble pings look (0 = same color as yours).
+uniform float pebble_tint = 0.0;
+// Surfaces right next to you stay a little brighter in the afterglow.
+uniform float close_boost = 0.0;
+// Water: the afterglow ripples outward in rings.
+uniform float ripple = 0.0;
+
+const vec3 GOLD = vec3(1.0, 0.76, 0.3);
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -37,28 +58,56 @@ void vertex() {
 	wnorm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 
-// x = ring brightness, y = afterglow brightness
-vec2 ping_light(vec4 p, float max_r) {
+// One ping at `pos`. x = ring, y = afterglow, z = white leading edge, w = memory.
+vec4 ping_light(vec3 pos, vec4 p, float max_r, float pebble) {
 	if (p.w < 0.0) {
-		return vec2(0.0);
+		return vec4(0.0);
+	}
+	float d = distance(pos, p.xyz);
+	if (d > max_r) {
+		return vec4(0.0);
 	}
 	float r = p.w * ping_speed;
-	float d = distance(wpos, p.xyz);
-	if (d > max_r) {
-		return vec2(0.0);
+	// > 0: the ring hasn't reached this point yet.
+	float ahead = d - r;
+	if (ahead > ring_width) {
+		return vec4(0.0);
 	}
-	float ring = (1.0 - smoothstep(0.0, ring_width, abs(d - r))) * (1.0 - step(max_r, r));
-	float since = p.w - d / ping_speed;
-	float glow = step(0.0, since) * (1.0 - clamp(since / afterglow, 0.0, 1.0)) * 0.45;
+	// Whisper pings (player slots, radius ~6 m) are drawn thinner and dimmer.
+	float whisper = (1.0 - pebble) * step(5.5, max_r) * step(max_r, 6.5);
+	float thin = mix(1.0, 0.45, whisper);
+	float dim = mix(1.0, 0.55, whisper);
 	float edge = 1.0 - smoothstep(max_r * 0.75, max_r, d);
-	return vec2(ring, glow) * edge;
+	float alive = 1.0 - step(max_r, r);
+	float ring = (1.0 - smoothstep(0.0, ring_width * thin, abs(ahead))) * alive;
+	// Bright white line right at the front of the ring.
+	float lead = (1.0 - smoothstep(0.0, 0.22 * thin, abs(ahead - 0.08))) * alive;
+	// Seconds since the ring passed this point.
+	float since = -ahead / ping_speed;
+	float passed = step(0.0, since);
+	float fade = clamp(since / afterglow, 0.0, 1.0);
+	float glow = passed * (1.0 - fade) * 0.45;
+	float n = fract(sin(floor(p.w * 14.0) * 12.9898 + p.x * 4.1 + p.z * 1.7) * 43758.5453);
+	glow *= 1.0 - flicker * smoothstep(0.35, 1.0, fade) * n;
+	glow *= 1.0 + ripple * 0.6 * sin(d * 4.0 - p.w * 7.0);
+	float mem = passed * echo_memory * (1.0 - clamp(since / memory_time, 0.0, 1.0));
+	return vec4(ring * dim, glow * dim, lead * dim, mem) * edge;
 }
 
 void fragment() {
-	vec2 l = ping_light(ping_0, ping_radius_0) + ping_light(ping_1, ping_radius_1)
-		+ ping_light(ping_2, ping_radius_2) + ping_light(ping_3, ping_radius_3)
-		+ ping_light(ping_4, ping_radius_4) + ping_light(ping_5, ping_radius_5)
-		+ ping_light(ping_6, ping_radius_6) + ping_light(ping_7, ping_radius_7);
+	vec4 a0 = ping_light(wpos, ping_0, ping_radius_0, 0.0);
+	vec4 a1 = ping_light(wpos, ping_1, ping_radius_1, 0.0);
+	vec4 a2 = ping_light(wpos, ping_2, ping_radius_2, 0.0);
+	vec4 a3 = ping_light(wpos, ping_3, ping_radius_3, 0.0);
+	vec4 b0 = ping_light(wpos, ping_4, ping_radius_4, 1.0);
+	vec4 b1 = ping_light(wpos, ping_5, ping_radius_5, 1.0);
+	vec4 b2 = ping_light(wpos, ping_6, ping_radius_6, 1.0);
+	vec4 b3 = ping_light(wpos, ping_7, ping_radius_7, 1.0);
+	vec4 lp = a0 + a1 + a2 + a3;
+	vec4 lb = b0 + b1 + b2 + b3;
+	// Memory takes the strongest trace, so overlapping pings don't pile up.
+	float mem = max(max(max(a0.w, a1.w), max(a2.w, a3.w)), max(max(b0.w, b1.w), max(b2.w, b3.w)));
+
 	vec3 g = wpos * grid_scale;
 	vec3 f = abs(fract(g + 0.5) - 0.5);
 	vec3 w = fwidth(g) * 1.5;
@@ -66,9 +115,27 @@ void fragment() {
 	float grid = max(max(lines.x, lines.y), lines.z);
 	float rim = 1.0 - abs(dot(NORMAL, VIEW));
 	float detail = 0.3 + 0.7 * grid + 0.5 * rim;
-	// Footstep glow: each step briefly lights the floor around the player,
-	// so walking gives visible feedback in the dark.
-	float near = (1.0 - smoothstep(0.6, 1.6, distance(wpos, player_pos))) * step(0.7, wnorm.y) * near_glow * step_glow;
-	float intensity = (l.x * 1.4 + l.y) * detail + near * (0.4 + grid);
-	ALBEDO = mix(echo_color, vec3(1.0), clamp(l.x * 0.6, 0.0, 1.0)) * intensity;
+
+	float to_player = distance(wpos, player_pos);
+	float close = 1.0 + close_boost * (1.0 - smoothstep(1.0, 3.5, to_player));
+	float ip = (lp.x * 1.4 + lp.y * close) * detail;
+	float ib = (lb.x * 1.4 + lb.y * close) * detail;
+
+	float floor_up = step(0.7, wnorm.y);
+	// Footstep glow: each step briefly lights the floor around the player.
+	float near = (1.0 - smoothstep(0.6, 1.6, to_player)) * floor_up * near_glow * step_glow * (0.4 + grid);
+	// Assist outline (Settings.hint_glow): the floor grid and the foot of the
+	// walls within a few meters, so nobody gets completely lost.
+	float around = 1.0 - smoothstep(1.5, 4.0, distance(wpos.xz, player_pos.xz));
+	float height = wpos.y - player_pos.y;
+	float wall_foot = (1.0 - floor_up) * step(-0.3, height) * (1.0 - smoothstep(0.05, 0.4, height));
+	float assist = hint_glow * floor_hint * around * (floor_up * (0.08 + 0.5 * grid) + wall_foot * 0.9) * 0.6;
+	float memv = mem * (0.35 + 0.65 * grid);
+
+	vec3 col = echo_color * (ip + near + assist + memv) + mix(echo_color, GOLD, pebble_tint) * ib;
+	float peak = max(max(col.r, col.g), col.b);
+	col = mix(col, vec3(peak), clamp((lp.x + lb.x) * 0.35, 0.0, 0.6));
+	float lead = clamp(lp.z + lb.z, 0.0, 1.0);
+	col += vec3(lead * (0.55 + 0.45 * grid) * 1.2);
+	ALBEDO = col;
 }
