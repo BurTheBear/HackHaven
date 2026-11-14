@@ -55,6 +55,13 @@ const CHALK_WHITE := Color(0.62, 0.62, 0.58)
 const LABEL_GOLD := Color(1.0, 0.78, 0.3, 0.5)
 const LABEL_WHITE := Color(0.92, 0.92, 0.9, 0.5)
 const ARC_COLOR := Color(1.0, 0.8, 0.32, 0.85)
+## Holding your breath: seconds it lasts, seconds to refill, and the gasp when it runs out.
+const BREATH_TIME := 6.0
+const BREATH_REGEN := 4.0
+const GASP_NOISE := 8.0
+## Noisy floors (area group "noise_floor", meta "noise"): footstep radius and sound.
+const FLOOR_NOISE := 6.0
+const FLOOR_SOUNDS := {"puddle": "splash", "bones": "bone_crunch", "plank": "plank_creak"}
 
 @export var pebble_scene: PackedScene
 
@@ -73,6 +80,10 @@ var stamina := 1.0  ## 0 – 1.
 var is_winded := false  ## Out of stamina: forced to walk until it refills a bit.
 var chalk_white := false  ## Next chalk marks are white instead of gold.
 var shake := 0.0  ## Set every frame by the Director (how close the Listeners are).
+var breath := 1.0  ## 0 - 1: how much held breath is left (HUD).
+var holding_breath := false  ## Silent while true (footsteps and floors make no noise).
+var is_hiding := false  ## Inside a hiding spot (group "hiding_spot"): can't move.
+var hide_exposed := false  ## Hiding but found / noisy: Listeners can catch you again.
 
 var _kick := 0.0  ## Extra shake for a moment (getting caught).
 var _step_timer := 0.0
@@ -102,6 +113,10 @@ var _wall_slow := 1.0
 var _bump_cooldown := 0.0
 var _regen_delay := 0.0
 var _breath_timer := 0.0
+var _breath_locked := false
+var _hide_return := Vector3.ZERO
+var _hide_hinted := false
+var _floor_kind := ""
 # Camera state.
 var _stand_height := 1.6
 var _head_h := 1.6
@@ -169,6 +184,7 @@ func _physics_process(delta: float) -> void:
 		_cancel_aim()
 		_ping_buffered = false
 		is_running = false
+		holding_breath = false
 		noise_radius = 0.0
 		return
 	# Swallow presses on the first tick after starting / resuming, so the
@@ -180,18 +196,40 @@ func _physics_process(delta: float) -> void:
 		_cancel_aim()
 		_ping_buffered = false
 
+	# Challenge: one pebble at most.
+	if Echo.challenge() == "one_pebble" and (Game.max_pebbles != 1 or Game.pebbles > 1):
+		Game.max_pebbles = 1
+		Game.pebbles = mini(Game.pebbles, 1)
+		Game.pebbles_changed.emit(Game.pebbles)
+	_update_breath(can_act, delta)
+	_update_hiding(can_act)
+	if is_hiding:
+		velocity = Vector3.ZERO
+		is_running = false
+		noise_radius = 0.0
+		_floor_kind = ""
+		_footsteps(delta, false)
+		_actions(delta, can_act)
+		return
+
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var has_input := input.length() > 0.1
 	_update_modes(can_act, has_input, delta)
 	_move(input, has_input, delta)
 	var moving := has_input and is_on_floor()
 	_update_stamina(delta, is_running and moving, has_input)
-	if not moving or is_sneaking:
+	if not moving or is_sneaking or holding_breath:
 		noise_radius = 0.0
 	elif is_running:
 		noise_radius = RUN_NOISE
 	else:
 		noise_radius = WALK_NOISE
+	_floor_kind = ""
+	if moving and not holding_breath:
+		_floor_kind = _noise_floor_kind()
+		if _floor_kind != "":
+			# Puddles, bones, planks: loud under a walk, half as loud when sneaking.
+			noise_radius = maxf(noise_radius, FLOOR_NOISE * (0.5 if is_sneaking else 1.0))
 	_footsteps(delta, moving)
 	_actions(delta, can_act)
 	# Fell into the chasm or out of the level.
@@ -260,7 +298,7 @@ func _update_modes(can_act: bool, has_input: bool, delta: float) -> void:
 	else:
 		_run_on = Input.is_action_pressed("run")
 	is_sneaking = _sneak_on
-	is_running = _run_on and not is_sneaking and has_input and not is_winded and is_on_floor()
+	is_running = _run_on and not is_sneaking and has_input and not is_winded and is_on_floor() and not holding_breath
 	if is_sneaking and not was_sneaking:
 		_dip_vel += SNEAK_DIP * _motion_scale()
 
@@ -386,6 +424,12 @@ func _footsteps(delta: float, moving: bool) -> void:
 	Echo.step()
 	if noise_radius > 0.0:
 		Echo.make_noise(global_position, noise_radius)
+	if holding_breath:
+		return
+	if _floor_kind != "":
+		var floor_sound: String = str(FLOOR_SOUNDS.get(_floor_kind, ""))
+		if floor_sound != "":
+			Sfx.play(floor_sound, -14.0 if is_sneaking else -4.0, &"Cave", randf_range(0.9, 1.1))
 	var surface := _surface()
 	var sound := "step"
 	if surface in SURFACES:
@@ -403,7 +447,7 @@ func _footsteps(delta: float, moving: bool) -> void:
 
 ## Floor type under the player, from the level's "surface" areas ("" = stone).
 func _surface() -> String:
-	for node in get_tree().get_nodes_in_group("surface"):
+	for node in (get_tree().get_nodes_in_group("surface") as Array):
 		var area := node as Area3D
 		if area != null and area.overlaps_body(self):
 			return str(area.get_meta("surface", ""))
@@ -424,12 +468,12 @@ func _actions(delta: float, can_act: bool) -> void:
 				_ping_buffered = true
 		if Input.is_action_just_pressed("whisper"):
 			try_whisper()
-		if Input.is_action_just_pressed("chalk"):
+		if Input.is_action_just_pressed("chalk") and not is_hiding:
 			# Chalk while holding sneak: switch gold / white for the next marks.
 			if Input.is_action_pressed("sneak"):
 				chalk_white = not chalk_white
 			drop_mark()
-		if Input.is_action_just_pressed("throw"):
+		if Input.is_action_just_pressed("throw") and not is_hiding:
 			_begin_aim()
 	if was_cooling and ping_cooldown <= 0.0:
 		if _ping_buffered:
@@ -440,8 +484,12 @@ func _actions(delta: float, can_act: bool) -> void:
 
 
 func try_ping() -> void:
-	if ping_cooldown > 0.0:
+	if ping_cooldown > 0.0 or Echo.challenge() == "no_ping":
 		return
+	if is_hiding:
+		hide_exposed = true  # a loud call gives you away
+	_nudge += 0.012 * _motion_scale()
+	_dip_vel += 0.3 * _motion_scale()
 	ping_cooldown = Game.ping_cooldown
 	_ping_buffered = false
 	Echo.emit_ping(global_position + Vector3.UP, Game.ping_radius, true)
@@ -498,6 +546,7 @@ func throw_pebble() -> void:
 	get_parent().add_child(pebble)
 	pebble.global_position = _throw_origin()
 	pebble.linear_velocity = _throw_velocity()
+	pebble.set("throw_origin", global_position)
 	Game.add_stat("pebbles_thrown")
 
 
@@ -626,6 +675,107 @@ func _chalk_material(color: Color) -> StandardMaterial3D:
 	return mat
 
 
+# ---------------------------------------------------------------- Breath and hiding
+
+## Hold "hold_breath": silent, but only for BREATH_TIME. Running out is a loud gasp.
+func _update_breath(can_act: bool, delta: float) -> void:
+	var want := can_act and Input.is_action_pressed("hold_breath") and not _breath_locked and breath > 0.0
+	if want and not holding_breath:
+		holding_breath = true
+		Sfx.play("breath_hold", -8.0, &"Cave")
+	elif not want and holding_breath:
+		holding_breath = false
+	if holding_breath:
+		breath = maxf(breath - delta / BREATH_TIME, 0.0)
+		if breath <= 0.0:
+			holding_breath = false
+			_breath_locked = true
+			Sfx.play("breath_release", -2.0, &"Cave")
+			Sfx.caption("[a loud gasp for air]", global_position, 3.0)
+			Echo.make_noise(global_position, GASP_NOISE)
+			if is_hiding:
+				hide_exposed = true
+	else:
+		breath = minf(breath + delta / BREATH_REGEN, 1.0)
+		if _breath_locked and breath >= 0.4:
+			_breath_locked = false
+
+
+## "interact" inside a hiding spot hides you; pressed again it lets you out.
+func _update_hiding(can_act: bool) -> void:
+	if not can_act:
+		return
+	if not Input.is_action_just_pressed("interact"):
+		if not is_hiding and not _hide_hinted and Engine.get_physics_frames() % 6 == 0 and _find_hiding_spot() != null:
+			_hide_hinted = true
+			Game.show_subtitle("A crevice. Press interact to hide in it. Again to come out.")
+		return
+	if is_hiding:
+		is_hiding = false
+		hide_exposed = false
+		global_position = _hide_return
+		velocity = Vector3.ZERO
+		Sfx.play("click", -12.0, &"Cave", 0.8)
+		return
+	var spot := _find_hiding_spot()
+	if spot == null:
+		return
+	_hide_return = global_position
+	# The spot's origin sits 1 m above the alcove floor.
+	global_position = spot.global_position - Vector3.UP * 1.0
+	velocity = Vector3.ZERO
+	rotation.y = deg_to_rad(float(spot.get_meta("yaw", 0.0)))
+	head.rotation.x = 0.0
+	is_hiding = true
+	hide_exposed = false
+	_hide_hinted = true
+	_cancel_aim()
+	_ping_buffered = false
+	Game.add_stat("hides")
+	Sfx.play("click", -12.0, &"Cave", 0.8)
+
+
+func _find_hiding_spot() -> Area3D:
+	for node in (get_tree().get_nodes_in_group("hiding_spot") as Array):
+		var area := node as Area3D
+		if area != null and area.overlaps_body(self):
+			return area
+	return null
+
+
+## Floor kind under the player from the level's "noise_floor" areas ("" = quiet).
+func _noise_floor_kind() -> String:
+	if not is_on_floor():
+		return ""
+	for node in (get_tree().get_nodes_in_group("noise_floor") as Array):
+		var area := node as Area3D
+		if area != null and area.overlaps_body(self):
+			return str(area.get_meta("noise", ""))
+	return ""
+
+
+## Hidden and not found: Listeners can't see or catch you.
+func is_hidden() -> bool:
+	return is_hiding and not hide_exposed
+
+
+## Still, sneaking, holding your breath or hidden: a Listener passing is a near miss.
+func is_quiet() -> bool:
+	return is_hidden() or holding_breath or is_sneaking or Vector2(velocity.x, velocity.z).length() < 0.5
+
+
+## A Listener found you in your hiding spot.
+func expose_hidden() -> void:
+	if is_hiding:
+		hide_exposed = true
+
+
+## A heavy thud nearby: a small camera kick.
+func thump(strength: float) -> void:
+	_nudge += 0.02 * strength * _motion_scale()
+	_dip_vel += 0.6 * strength * _motion_scale()
+
+
 # ---------------------------------------------------------------- Respawn / caught
 
 ## Called by main.gd. yaw sets the facing (and levels the head); NAN keeps it.
@@ -643,6 +793,11 @@ func respawn(pos: Vector3, yaw: float = NAN) -> void:
 	_run_on = false
 	stamina = 1.0
 	is_winded = false
+	is_hiding = false
+	hide_exposed = false
+	holding_breath = false
+	breath = 1.0
+	_breath_locked = false
 	_cancel_aim()
 	if not is_nan(yaw):
 		rotation.y = yaw
@@ -673,7 +828,7 @@ func _update_camera(delta: float) -> void:
 	camera.v_offset = randf_range(-s, s)
 
 	# Sneaking lowers the head; landings, bumps and crouching dip it on a spring.
-	var stand := _stand_height - (SNEAK_DROP if is_sneaking else 0.0)
+	var stand := _stand_height - (SNEAK_DROP if is_sneaking or is_hiding else 0.0)
 	_head_h = lerpf(_head_h, stand, 1.0 - exp(-8.0 * dt))
 	_dip_vel += (-DIP_STIFF * _dip - DIP_DAMP * _dip_vel) * dt
 	_dip = clampf(_dip + _dip_vel * dt, -0.1, 0.3)

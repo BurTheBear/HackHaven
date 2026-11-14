@@ -92,6 +92,21 @@ size = Vector3(2.2, 3.0, 3.0)
 [sub_resource type="BoxShape3D" id="BoxShape3D_4p0_3p0_3p0"]
 size = Vector3(4.0, 3.0, 3.0)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_hideX"]
+size = Vector3(3.6, 2.0, 2.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hideZ"]
+size = Vector3(2.8, 2.0, 3.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nf"]
+size = Vector3(2.2, 1.0, 2.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jp"]
+size = Vector3(1.2, 2.0, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chase"]
+size = Vector3(10.0, 3.0, 1.5)
+
 [node name="Level" type="Node3D" unique_id=1855566526]
 script = ExtResource("1_ppgk2")
 reveal_material = SubResource("ShaderMaterial_olg7q")
@@ -107,9 +122,9 @@ size = Vector3(58.0, 22.0, 195.0)
 material = SubResource("StandardMaterial3D_t1rx8")
 
 [node name="StartRoom" type="CSGBox3D" parent="Geometry/Cave"]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 0.0)
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -2.5, 5.0, 0.0)
 operation = 2
-size = Vector3(6.0, 4.0, 6.0)
+size = Vector3(11.0, 10.0, 12.0)
 material = SubResource("StandardMaterial3D_t1rx8")
 
 [node name="Sinkhole" type="CSGBox3D" parent="Geometry/Cave"]
@@ -361,6 +376,75 @@ material = SubResource("StandardMaterial3D_t1rx8")
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 17.35, 0.45, -19.5)
 size = Vector3(0.3, 1.5, 6.4)
 material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideVeinA" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 11.4, 1.3, -28.25)
+operation = 2
+size = Vector3(3.0, 2.6, 2.6)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideHallW" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.9, 1.3, -90.0)
+operation = 2
+size = Vector3(3.0, 2.6, 2.6)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideHallE" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 23.1, 1.3, -84.0)
+operation = 2
+size = Vector3(3.0, 2.6, 2.6)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideStalker" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 16.0, 3.8, -132.9)
+operation = 2
+size = Vector3(2.6, 2.6, 3.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="CavernColumn0" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -6.6, 5.0, -4.2)
+radius = 1.0
+height = 10.4
+sides = 9
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="CavernColumn1" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -6.6, 5.0, 3.8)
+radius = 1.2
+height = 10.4
+sides = 9
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PuddleMark1" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 0.0, -31.5)
+radius = 1.1
+height = 0.08
+sides = 12
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PuddleMark2" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 17.0, 0.0, -80.0)
+radius = 1.1
+height = 0.08
+sides = 12
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PuddleMark3" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 15.0, 2.5, -142.0)
+radius = 1.1
+height = 0.08
+sides = 12
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PlankMark1" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 0.0, -70.5)
+size = Vector3(2.2, 0.08, 1.4)
+material = SubResource("Mat_wood")
+
+[node name="PlankMark2" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 2.5, -149.0)
+size = Vector3(2.2, 0.08, 1.4)
+material = SubResource("Mat_wood")
 
 [node name="Stalagmite" type="CSGCylinder3D" parent="Geometry/Cave"]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 3.0, 3.4, -133.3)
@@ -1704,6 +1788,7 @@ kind = 5
 floor_offset = -1.5
 build_visual = false
 prompt_id = "run"
+event_name = "chase"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/HintRun"]
 shape = SubResource("BoxShape3D_3p5_3p0_1p5")
@@ -1716,7 +1801,7 @@ script = ExtResource("3_klq6b")
 kind = 2
 floor_offset = -1.0
 log_index = 8
-subtitle = "I can feel wind. I'm close. I'm going to make it back... I'm going to-"
+subtitle = "My eyes don't work anymore. I don't need them. I can hear you breathing... in, out, so loud. I can feel the wind. I'm going to make it back... I'm going to-"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/VoiceLog08"]
 shape = SubResource("BoxShape3D_2p4_3p0_2p4")
@@ -1742,6 +1827,196 @@ mesh = SubResource("BoxMesh_day")
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 6.8, -0.5)
 material_override = SubResource("StandardMaterial3D_day")
 mesh = SubResource("BoxMesh_sky")
+
+[node name="Hiding" type="Node3D" parent="."]
+
+[node name="HideVeinA" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 11.4, 1.0, -28.25)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = -90.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideVeinA"]
+shape = SubResource("BoxShape3D_hideX")
+
+[node name="HideHallW" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.9, 1.0, -90.0)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = -90.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideHallW"]
+shape = SubResource("BoxShape3D_hideX")
+
+[node name="HideHallE" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 23.1, 1.0, -84.0)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = 90.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideHallE"]
+shape = SubResource("BoxShape3D_hideX")
+
+[node name="HideStalker" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 16.0, 3.5, -132.9)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = 0.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideStalker"]
+shape = SubResource("BoxShape3D_hideZ")
+
+[node name="ExplorerSpot" type="Marker3D" parent="."]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.0, 0.0, -2.0)
+
+[node name="MaraBody" type="Marker3D" parent="." groups=["mara_body"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 23.1, 4.0, -165.0)
+
+[node name="Journal1" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 7.0, 1.0, -47.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 7
+floor_offset = -1.0
+journal_index = 1
+subtitle = "Mara's notebook, page 1: Rule one, never stay down past the third day. The Listeners were all explorers once. The cave kept them."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal1"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="Journal2" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.6, 1.0, -28.25)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 7
+floor_offset = -1.0
+journal_index = 2
+subtitle = "Page 2: Names scratched into the wall. Then another beneath. Then one in my own handwriting that I have not written yet."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal2"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="Journal3" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 23.4, 1.0, -84.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 7
+floor_offset = -1.0
+journal_index = 3
+subtitle = "Page 3: Day nine. The food is gone. I stopped missing it. I stopped missing a lot of things. The dark hurts less now."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal3"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="Journal4" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -11.0, 3.5, -131.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 7
+floor_offset = -1.0
+journal_index = 4
+subtitle = "Page 4: Why does everyone shout? Jonah's radio is so loud I can hear it from three tunnels away. I turned it off. It was already off."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal4"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="Journal5" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 22.6, 5.0, -166.6)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_klq6b")
+kind = 7
+floor_offset = -1.0
+journal_index = 5
+subtitle = "Page 5: I don't need the lantern anymore. Everything is so loud and so clear. If you are reading this, stay quiet. I am still trying to be."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal5"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="NoiseFloor1" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 0.5, -31.5)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "puddle"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor1"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor2" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 0.5, -44.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "bones"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor2"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor3" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 0.5, -70.5)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "plank"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor3"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor4" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 0.5, -93.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "bones"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor4"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor5" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 17.0, 0.5, -80.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "puddle"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor5"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor6" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 19.0, 0.5, -103.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "bones"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor6"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor7" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 21.0, 3.0, -141.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "bones"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor7"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor8" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 15.0, 3.0, -142.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "puddle"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor8"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor9" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 3.0, -149.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "plank"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor9"]
+shape = SubResource("BoxShape3D_nf")
 
 [node name="Sounds" type="Node3D" parent="."]
 
@@ -1796,15 +2071,19 @@ patrol_offset = Vector3(0.0, 0.0, -6.0)
 [node name="HallListener" parent="Listeners" unique_id=586611493 instance=ExtResource("4_b121j")]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 14.0, 0.1, -81.0)
 patrol_offset = Vector3(0.0, 0.0, -14.0)
+patrol_points = PackedVector3Array(0, 0, 0, -7.2, 0, -4, -7.2, 0, -14, 6.8, 0, -14, 6.8, 0, -4)
 
 [node name="Sleeper" parent="Listeners" instance=ExtResource("4_b121j")]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -2.5, 2.6, -136.0)
 patrol_offset = Vector3(0.0, 0.0, 0.0)
 asleep = true
 
-[node name="Stalker" parent="Listeners" instance=ExtResource("4_b121j")]
+[node name="Stalker" parent="Listeners" groups=["chase_listener"] instance=ExtResource("4_b121j")]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 24.0, 2.6, -136.0)
 patrol_offset = Vector3(0.0, 0.0, -8.0)
+patrol_points = PackedVector3Array(0, 0, 0, -4, 0, 1, -8, 0, 1, -8, 0, -8, 0, 0, -8)
+chase_speed = 4.4
+chase_reset = true
 patrol_speed = 1.8
 investigate_speed = 4.2
 alert_time = 1.1

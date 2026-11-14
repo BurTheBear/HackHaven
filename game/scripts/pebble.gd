@@ -15,7 +15,10 @@ const TRAIL_COLOR := Color(1.0, 0.82, 0.35, 0.9)
 @onready var click: AudioStreamPlayer3D = $Click
 @onready var _mesh: Node3D = $Mesh
 
+## Where the player stood when throwing (Listeners that have learned go there).
+var throw_origin := Vector3.ZERO
 var _bounces := 0
+var _roll_timer := 0.0
 var _cooldown := 0.0
 var _life := LIFETIME
 var _rest := 0.0
@@ -44,6 +47,12 @@ func _physics_process(delta: float) -> void:
 	if _fading:
 		return
 	var speed := linear_velocity.length()
+	_roll_timer -= delta
+	if speed > 0.35 and speed < 3.0 and get_contact_count() > 0 and _roll_timer <= 0.0:
+		_roll_timer = randf_range(0.1, 0.18)
+		click.pitch_scale = randf_range(1.4, 1.9)
+		click.volume_db = -24.0
+		click.play()
 	var want_trail := speed > TRAIL_MIN_SPEED
 	if _trail.emitting != want_trail:
 		_trail.emitting = want_trail
@@ -58,12 +67,16 @@ func _physics_process(delta: float) -> void:
 func _on_body_entered(_body: Node) -> void:
 	if _cooldown > 0.0:
 		return
-	_cooldown = 0.15
+	_cooldown = 0.07
+	var hit := clampf(linear_velocity.length() / 8.0, 0.0, 1.0)
 	if click.stream:
+		click.pitch_scale = randf_range(0.75, 1.35)
+		click.volume_db = lerpf(-16.0, -2.0, hit)
 		click.play()
-	if _bounces < ECHO_BOUNCES:
+	if _bounces < ECHO_BOUNCES and _cooldown > 0.0:
 		_bounces += 1
 		Echo.emit_ping(global_position, PING_RADIUS, true, true)
+		Echo.pebble_lure.emit(global_position, throw_origin)
 
 
 ## Shrink away, then free.

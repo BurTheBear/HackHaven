@@ -9,7 +9,7 @@ extends Area3D
 ## Voice logs play when the player presses "interact" inside the area.
 ## Nothing depends on order: every trigger only cares about the player entering it.
 
-enum Kind { CHECKPOINT, PEBBLES, VOICE_LOG, EXIT, CRYSTAL, HINT, ZONE }
+enum Kind { CHECKPOINT, PEBBLES, VOICE_LOG, EXIT, CRYSTAL, HINT, ZONE, JOURNAL }
 
 const GOLD := Color(0.8, 0.627451, 0.2164706)
 const CRYSTAL_BLUE := Color(0.45, 0.8, 1.0)
@@ -25,6 +25,8 @@ const GLINT := Color(1.0, 0.96, 0.8)
 @export_multiline var subtitle := ""
 ## Voice logs: the log's number (1..8).
 @export var log_index := 0
+## JOURNAL: the page's number; `subtitle` is its text.
+@export var journal_index := 0
 ## HINT: UI prompt to request ("ping", "whisper", "chalk", "throw", "sneak", "run", "interact", "map").
 @export var prompt_id := ""
 ## ZONE: name the UI shows on entry ("THE VEINS").
@@ -108,7 +110,8 @@ func _on_body_exited(body: Node3D) -> void:
 
 
 func _activate() -> void:
-	if event_name != "" and not _event_sent:
+	# Chase events repeat on every entry (the chase can restart after a catch).
+	if event_name != "" and (not _event_sent or event_name.begins_with("chase")):
 		_event_sent = true
 		Game.level_event.emit(event_name)
 	if kind == Kind.VOICE_LOG:
@@ -152,6 +155,12 @@ func _activate() -> void:
 		Kind.ZONE:
 			Game.current_zone = zone_name
 			Game.zone_entered.emit(zone_name)
+		Kind.JOURNAL:
+			# game_state.gd records the page and the stat.
+			if Game.has_signal("journal_page"):
+				Game.emit_signal("journal_page", journal_index, subtitle)
+			Sfx.play("pickup_pebbles", -12.0, &"Master", 1.6)
+			hide()
 
 
 func _play_log() -> void:
@@ -234,6 +243,9 @@ func _animate(delta: float) -> void:
 		Kind.PEBBLES:
 			glow = 0.8 + 0.06 * sin(_time * 1.9)
 			_twinkle()
+		Kind.JOURNAL:
+			glow = 0.6 + 0.4 * sin(_time * 2.2)
+			_visual.rotation.y += delta * 0.6
 	_material.albedo_color = Color(color.r * glow, color.g * glow, color.b * glow, 1.0)
 
 
@@ -250,7 +262,7 @@ func _twinkle() -> void:
 
 
 func _build_visual() -> void:
-	if kind != Kind.PEBBLES and kind != Kind.VOICE_LOG and kind != Kind.CRYSTAL and kind != Kind.CHECKPOINT:
+	if kind != Kind.PEBBLES and kind != Kind.VOICE_LOG and kind != Kind.CRYSTAL and kind != Kind.CHECKPOINT and kind != Kind.JOURNAL:
 		return
 	_visual = Node3D.new()
 	_visual.name = "Shape"
@@ -269,6 +281,8 @@ func _build_visual() -> void:
 			_build_crystal()
 		Kind.CHECKPOINT:
 			_build_lantern_stand()
+		Kind.JOURNAL:
+			_build_page()
 
 
 func _part(mesh: Mesh, pos: Vector3, rot_deg: Vector3 = Vector3.ZERO) -> MeshInstance3D:
@@ -369,3 +383,11 @@ func _build_lantern_stand() -> void:
 	_part(cradle, Vector3(0.0, 0.9, 0.0))
 	_part(_prism(Vector3(0.16, 0.34, 0.05)), Vector3(0.0, 1.08, 0.0), Vector3(0.0, 0.0, 12.0))
 	_part(_prism(Vector3(0.1, 0.2, 0.04)), Vector3(0.06, 1.0, 0.02), Vector3(0.0, 40.0, -25.0))
+
+
+## A torn notebook page lying on the floor, a little tilted, with a bent corner.
+func _build_page() -> void:
+	_base_color = Color(0.9, 0.82, 0.55)
+	_material.albedo_color = _base_color
+	_part(_box(Vector3(0.24, 0.012, 0.32)), Vector3(0.0, 0.03, 0.0), Vector3(4.0, 0.0, 3.0))
+	_part(_box(Vector3(0.08, 0.012, 0.08)), Vector3(0.09, 0.05, 0.13), Vector3(0.0, 20.0, 12.0))

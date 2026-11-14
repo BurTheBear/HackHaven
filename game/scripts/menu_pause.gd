@@ -107,7 +107,7 @@ func open() -> void:
 	_logs_page.visible = false
 	var zone := Game.current_zone if Game.current_zone != "" else "THE HOLLOW"
 	_info.text = "%s     ·     Logs %d / %d" % [zone.to_upper(), Game.logs_found.size(), total_logs]
-	_logs_button.disabled = Game.logs_found.is_empty()
+	_logs_button.disabled = Game.logs_found.is_empty() and Game.journal_found.is_empty()
 	_controls.text = _controls_text()
 	_buttons[0].grab_focus()
 
@@ -183,7 +183,15 @@ func show_logs() -> void:
 		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		body.custom_minimum_size = Vector2(700, 0)
 		_logs_list.add_child(body)
-	if found.is_empty():
+	var pages: Array = Game.journal_found.duplicate()
+	pages.sort()
+	for idx in pages:
+		_logs_list.add_child(Style.label("JOURNAL PAGE %d" % (int(idx) + 1), 16, Style.CYAN, HORIZONTAL_ALIGNMENT_LEFT))
+		var jt := Style.label(str(Game.journal_texts.get(int(idx), "(The ink has run.)")), 20, Style.TEXT, HORIZONTAL_ALIGNMENT_LEFT)
+		jt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		jt.custom_minimum_size = Vector2(700, 0)
+		_logs_list.add_child(jt)
+	if found.is_empty() and pages.is_empty():
 		_logs_list.add_child(Style.label("No recordings found yet.", 20, Style.MUTED))
 	_main.visible = false
 	_logs_page.visible = true

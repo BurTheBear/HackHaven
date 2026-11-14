@@ -8,6 +8,9 @@ signal ping_emitted(origin: Vector3, max_radius: float, loud: bool)
 ## A sound with no echo (footsteps): Listeners inside radius hear it, nothing lights up.
 signal noise_made(origin: Vector3, radius: float)
 
+## A pebble pinged: `origin` is where it landed, `thrower` where it was thrown from.
+signal pebble_lure(origin: Vector3, thrower: Vector3)
+
 const GROUP_SIZE := 4
 const SLOTS := 8
 ## The ring reaches 22 m in ~1.2 s, then 2 s of afterglow (longer on landmarks
@@ -23,6 +26,9 @@ var _radii: Array[float] = []
 var _step_glow := 0.0
 var _since_player_ping := 99.0
 var _player_ping_radius := 22.0
+## Pebble lures that fooled a Listener this run (Listeners start to adapt after 3).
+var lures_fooled := 0
+var adapt_announced := false
 
 
 func _ready() -> void:
@@ -55,7 +61,17 @@ func emit_ping(origin: Vector3, max_radius: float = 22.0, loud: bool = true, is_
 
 
 ## Called on every footstep: briefly lights the floor around the player.
+## Challenge mode picked on the menu ("", "no_ping", "one_pebble", "darkness").
+func challenge() -> String:
+	var c: Variant = Game.get("challenge")
+	if c == null:
+		return ""
+	return str(c)
+
+
 func step() -> void:
+	if challenge() == "darkness":
+		return
 	_step_glow = 1.0
 
 
@@ -97,4 +113,4 @@ func _process(delta: float) -> void:
 	_since_player_ping += delta
 	RenderingServer.global_shader_parameter_set("step_glow", _step_glow)
 	# Assist: always-on floor outline near the player (0 = off).
-	RenderingServer.global_shader_parameter_set("hint_glow", clampf(float(Settings.hint_glow), 0.0, 1.0))
+	RenderingServer.global_shader_parameter_set("hint_glow", 0.0 if challenge() == "darkness" else clampf(float(Settings.hint_glow), 0.0, 1.0))
