@@ -45,6 +45,9 @@ const ROLL_MAX := 0.045  ## Radians of camera roll at very high shake.
 const SHAKE_REDUCED := 0.15  ## Shake multiplier with Settings.reduce_shake.
 const DIP_STIFF := 140.0
 const DIP_DAMP := 18.0
+const JUMP_VELOCITY := 3.3  ## ~0.55 m apex with the default gravity.
+const JUMP_COOLDOWN := 0.6
+const JUMP_NOISE := 5.0  ## Landing from a jump (silent while sneaking).
 const LAND_MIN_SPEED := 4.0  ## Falls slower than this (small steps) make no thud.
 const WALL_DRAG := 0.45  ## Up to this much slower while scraping along a wall.
 const BUMP_SPEED := 2.0
@@ -109,6 +112,8 @@ var _arc_dots: Array[MeshInstance3D] = []
 # Movement state.
 var _was_on_floor := true
 var _fall_speed := 0.0
+var _jump_cooldown := 0.0
+var _jumped := false
 var _wall_slow := 1.0
 var _bump_cooldown := 0.0
 var _regen_delay := 0.0
@@ -215,6 +220,9 @@ func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var has_input := input.length() > 0.1
 	_update_modes(can_act, has_input, delta)
+	_jump_cooldown = maxf(_jump_cooldown - delta, 0.0)
+	if can_act and _jump_cooldown <= 0.0 and is_on_floor() and Input.is_action_just_pressed("jump"):
+		_jump()
 	_move(input, has_input, delta)
 	var moving := has_input and is_on_floor()
 	_update_stamina(delta, is_running and moving, has_input)
@@ -364,8 +372,23 @@ func _bump(impact: float) -> void:
 	Echo.step()
 
 
+func _jump() -> void:
+	_jump_cooldown = JUMP_COOLDOWN
+	_jumped = true
+	velocity.y = JUMP_VELOCITY
+	_fall_speed = 0.0
+	_dip_vel += 0.45 * _motion_scale()
+
+
 func _on_landed(fall_speed: float) -> void:
+	var from_jump := _jumped
+	_jumped = false
+	if from_jump and not is_sneaking:
+		Echo.make_noise(global_position, JUMP_NOISE)
 	if fall_speed < LAND_MIN_SPEED:
+		if from_jump:
+			Sfx.play("land", -14.0, &"Cave", randf_range(0.95, 1.08))
+			_dip_vel += 0.7 * _motion_scale()
 		return
 	var t := clampf((fall_speed - LAND_MIN_SPEED) / 8.0, 0.0, 1.0)
 	Sfx.play("land", lerpf(-10.0, 0.0, t), &"Cave", randf_range(0.92, 1.05))
@@ -786,6 +809,8 @@ func respawn(pos: Vector3, yaw: float = NAN) -> void:
 	_ping_buffered = false
 	_fall_speed = 0.0
 	_was_on_floor = true
+	_jumped = false
+	_jump_cooldown = 0.0
 	_wall_slow = 1.0
 	_dip = 0.0
 	_dip_vel = 0.0

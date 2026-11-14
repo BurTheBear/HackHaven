@@ -40,18 +40,58 @@ const DAY_MIN := 0.18
 
 const TEX_DIR := "res://assets/textures/"
 const SKY_HDRI := "res://assets/hdri/sky.hdr"
-const WALL_TEX := {"level": "dark_rock", "level2": "cliff_side"}
-const FLOOR_TEX := "brown_mud_rocks_01"
-const PROP_ROCK_TEX := "rock_06"
-const WOOD_TEX := "brown_planks_09"
+const WALL_TEX := {"level": "dark_rock_02", "level2": "mossy_rock"}
+const DEFAULT_WALL_TEX := "dark_rock_02"
+const FLOOR_TEX := "brown_mud_03"
+const PROP_ROCK_TEX := "rock_face_04"
+const WOOD_TEX := "weathered_planks"
 const WOOD_COLOR := Color(0.46, 0.31, 0.17)
 const TEX_SCALE := 0.3
+## Color ending: darker, wetter PBR (albedo tint, roughness multiplier).
+const ENDING_TINT := {
+	"cave": Color(0.62, 0.62, 0.66),
+	"floor": Color(0.55, 0.52, 0.5),
+	"rock": Color(0.6, 0.6, 0.63),
+	"wood": Color(0.58, 0.52, 0.47),
+}
+const ENDING_ROUGH := {"cave": 0.75, "floor": 0.55, "rock": 0.8, "wood": 0.95}
 const SURF_COLORS := {
 	"metal": Color(0.36, 0.37, 0.4),
 	"rust": Color(0.43, 0.22, 0.12),
 	"rope": Color(0.72, 0.62, 0.42),
 	"cloth": Color(0.2, 0.27, 0.36),
 }
+
+## Color-ending floor pass: world-space planar mapping on surfaces facing up,
+## faded out on walls so the wall set shows there.
+const FLOOR_OVERLAY_SHADER := """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_back;
+uniform sampler2D tex_albedo : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D tex_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D tex_rough : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform sampler2D tex_ao : hint_default_white, filter_linear_mipmap, repeat_enable;
+uniform vec3 tint : source_color = vec3(0.55);
+uniform float rough_mul = 0.55;
+uniform float tex_scale = 0.3;
+varying vec3 wpos;
+varying vec3 wnor;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wnor = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+void fragment() {
+	vec2 uv = wpos.xz * tex_scale;
+	float up = smoothstep(0.55, 0.8, wnor.y);
+	ALBEDO = texture(tex_albedo, uv).rgb * tint;
+	NORMAL_MAP = texture(tex_normal, uv).rgb;
+	NORMAL_MAP_DEPTH = 1.3;
+	ROUGHNESS = texture(tex_rough, uv).r * rough_mul;
+	AO = texture(tex_ao, uv).r;
+	AO_LIGHT_AFFECT = 0.6;
+	ALPHA = up;
+}
+"""
 
 @export var reveal_material: Material
 
@@ -192,7 +232,7 @@ func _make_materials() -> void:
 		base.shader = preload("res://shaders/reveal.gdshader")
 	_world_material = base.duplicate() as ShaderMaterial
 	_set_params(_world_material, WORLD_PARAMS)
-	var wall := str(WALL_TEX.get(scene_file_path.get_file().get_basename(), "dark_rock"))
+	var wall := str(WALL_TEX.get(scene_file_path.get_file().get_basename(), DEFAULT_WALL_TEX))
 	_set_triplanar(_world_material, wall, FLOOR_TEX)
 	_chalk_material = _world_material.duplicate() as ShaderMaterial
 	_set_flat(_chalk_material, Color(0.85, 0.85, 0.85))
@@ -312,7 +352,7 @@ func _std_material(kind: String) -> StandardMaterial3D:
 	mat.roughness = 0.9
 	var tex_name := ""
 	if kind == "cave":
-		tex_name = str(WALL_TEX.get(scene_file_path.get_file().get_basename(), "dark_rock"))
+		tex_name = str(WALL_TEX.get(scene_file_path.get_file().get_basename(), DEFAULT_WALL_TEX))
 	elif kind == "rock":
 		tex_name = PROP_ROCK_TEX
 	elif kind == "wood":
@@ -320,16 +360,56 @@ func _std_material(kind: String) -> StandardMaterial3D:
 	else:
 		mat.albedo_color = SURF_COLORS.get(kind, Color(0.5, 0.5, 0.5))
 	if tex_name != "":
-		mat.albedo_texture = _tex(tex_name, "diff")
-		var nor := _tex(tex_name, "nor")
-		if nor != null:
-			mat.normal_enabled = true
-			mat.normal_texture = nor
+		_apply_pbr(mat, tex_name, kind)
+		var k := 0.6 if kind == "wood" else TEX_SCALE
 		mat.uv1_triplanar = true
 		mat.uv1_world_triplanar = true
-		var k := 0.6 if kind == "wood" else TEX_SCALE
+		mat.uv1_triplanar_sharpness = 4.0
 		mat.uv1_scale = Vector3(k, k, k)
+	if kind == "cave":
+		# StandardMaterial3D has one texture set: the cave's walls/ceiling get
+		# the wall set; floors get a second, wetter pass via next_pass.
+		mat.next_pass = _floor_overlay()
 	_std_cache[kind] = mat
+	return mat
+
+
+## Albedo, normal, roughness and AO from a texture set, darkened for the ending.
+func _apply_pbr(mat: StandardMaterial3D, tex_name: String, kind: String) -> void:
+	mat.albedo_texture = _tex(tex_name, "diff")
+	mat.albedo_color = ENDING_TINT.get(kind, Color(0.6, 0.6, 0.6))
+	var nor := _tex(tex_name, "nor")
+	if nor != null:
+		mat.normal_enabled = true
+		mat.normal_texture = nor
+		mat.normal_scale = 1.4
+	var rough := _tex(tex_name, "rough")
+	if rough != null:
+		mat.roughness_texture = rough
+		mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	mat.roughness = float(ENDING_ROUGH.get(kind, 0.9))
+	var ao := _tex(tex_name, "ao")
+	if ao != null:
+		mat.ao_enabled = true
+		mat.ao_texture = ao
+		mat.ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+		mat.ao_light_affect = 0.6
+
+
+## Wet mud drawn over upward-facing cave surfaces in the color ending.
+func _floor_overlay() -> ShaderMaterial:
+	var sh := Shader.new()
+	sh.code = FLOOR_OVERLAY_SHADER
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	mat.render_priority = 1
+	mat.set_shader_parameter("tex_albedo", _tex(FLOOR_TEX, "diff"))
+	mat.set_shader_parameter("tex_normal", _tex(FLOOR_TEX, "nor"))
+	mat.set_shader_parameter("tex_rough", _tex(FLOOR_TEX, "rough"))
+	mat.set_shader_parameter("tex_ao", _tex(FLOOR_TEX, "ao"))
+	mat.set_shader_parameter("tint", ENDING_TINT["floor"])
+	mat.set_shader_parameter("rough_mul", ENDING_ROUGH["floor"])
+	mat.set_shader_parameter("tex_scale", TEX_SCALE)
 	return mat
 
 

@@ -13,6 +13,9 @@
 [ext_resource type="PackedScene" path="res://assets/models/props/box_small.glb" id="e11"]
 [ext_resource type="PackedScene" path="res://assets/models/props/rubble_large.glb" id="e12"]
 [ext_resource type="PackedScene" path="res://assets/models/props/barrel_large.glb" id="e13"]
+[ext_resource type="PackedScene" path="res://assets/models/rocks/rock_07/rock_07_1k.gltf" id="r1"]
+[ext_resource type="PackedScene" path="res://assets/models/rocks/rock_09/rock_09_1k.gltf" id="r2"]
+[ext_resource type="PackedScene" path="res://assets/models/rocks/boulder_01/boulder_01_1k.gltf" id="r3"]
 
 [sub_resource type="BoxMesh" id="s1"]
 size = Vector3(0.8, 0.03, 1.4)
@@ -186,19 +189,32 @@ transform = Transform3D(1, 0, 0, 0, 0.9, 0, 0, 0, 1, 1.9, 0.05, -1.3)
 mesh = SubResource("s5")
 metadata/surf = "rope"
 
-[node name="Stalagmite20" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0.5, 1)
-mesh = SubResource("s6")
-metadata/surf = "rock"
+[node name="RockSpire20" parent="." instance=ExtResource("r1")]
+transform = Transform3D(0.5285, -3.9329, 0.3594, 0, 0.4429, 3.2611, -3.5848, -0.5798, 0.053, 2.6, 0.5406, 1)
 
-[node name="Stalagmite21" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.65, 0.35, -2.5)
-mesh = SubResource("s7")
-metadata/surf = "rock"
+[node name="Scree20_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(2.7415, 0, 1.6246, 0, 3.0225, 0, -1.6246, 0, 2.7415, 2.9141, -0.01, 1.3194)
+
+[node name="Scree20_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-1.5705, 0, -1.9363, 0, 2.6813, 0, 1.9363, 0, -1.5705, 3.048, -0.01, 0.9975)
+
+[node name="RockSpire21" parent="." instance=ExtResource("r1")]
+transform = Transform3D(-2.7245, -0.9122, -0.0008, 0, -0.0038, 2.2969, -0.8263, 3.0076, 0.0026, 2.65, 0.3634, -2.5)
+
+[node name="Scree21_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(2.8447, 0, 1.7933, 0, 3.1627, 0, -1.7933, 0, 2.8447, 2.775, -0.01, -2.1709)
+
+[node name="Scree21_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-2.1505, 0, 1.4135, 0, 3.4516, 0, -1.4135, 0, -2.1505, 2.9992, -0.01, -2.4559)
 
 [node name="Support22" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
 
+[node name="WallRock22_0" parent="." instance=ExtResource("r1")]
+transform = Transform3D(2.095, 0, 0.5655, 0, 2.0713, 0, -0.5655, 0, 2.095, -1.3, -0.03, -6.6489)
+
+[node name="WallRock22_2" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.6975, 0, 1.2298, 0, 5.922, 0, -1.2298, 0, 3.6975, 1.3, -0.03, -6.5515)
 [node name="Post23" type="MeshInstance3D" parent="Support22"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -222,6 +238,8 @@ metadata/surf = "wood"
 [node name="Support27" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -10)
 
+[node name="WallRock27_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.1245, 0, -0.9033, 0, 5.0786, 0, 0.9033, 0, 3.1245, -1.3, -0.03, -10.632)
 [node name="Post28" type="MeshInstance3D" parent="Support27"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -245,6 +263,11 @@ metadata/surf = "wood"
 [node name="Support32" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -14)
 
+[node name="WallRock32_0" parent="." instance=ExtResource("r1")]
+transform = Transform3D(2.1653, 0, 0.4648, 0, 1.8913, 0, -0.4648, 0, 2.1653, -1.3, -0.03, -13.4643)
+
+[node name="WallRock32_2" parent="." instance=ExtResource("r2")]
+transform = Transform3D(4.2534, 0, -1.0494, 0, 6.1459, 0, 1.0494, 0, 4.2534, 1.3, -0.03, -13.3394)
 [node name="Post33" type="MeshInstance3D" parent="Support32"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -274,15 +297,23 @@ transform = Transform3D(0.9848, 0, 0.1736, 0, 1, 0, -0.1736, 0, 0.9848, -1.05, 0
 [node name="rubble39" parent="." instance=ExtResource("e12")]
 transform = Transform3D(0.766, 0, 0.6428, 0, 1, 0, -0.6428, 0, 0.766, 3.2, 0, -16.2)
 
-[node name="Stalagmite40" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.65, -24.2)
-mesh = SubResource("s11")
-metadata/surf = "rock"
+[node name="RockSpire40" parent="." instance=ExtResource("r1")]
+transform = Transform3D(2.2788, -3.4697, 0.0238, 0, 0.0295, 4.2655, -3.1432, -2.5155, 0.0173, -3, 0.7178, -24.2)
 
-[node name="Stalagmite41" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.2, 0.5, -24.4)
-mesh = SubResource("s12")
-metadata/surf = "rock"
+[node name="Scree40_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(1.8839, 0, -1.3194, 0, 2.5402, 0, 1.3194, 0, 1.8839, -3.4791, -0.01, -24.2295)
+
+[node name="Scree40_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(0.0983, 0, 2.506, 0, 2.0243, 0, -2.506, 0, 0.0983, -3.1446, -0.01, -24.6577)
+
+[node name="RockSpire41" parent="." instance=ExtResource("r1")]
+transform = Transform3D(-1.7887, -2.9713, -0.1529, 0, -0.1997, 3.2761, -2.6959, 1.9714, 0.1015, 3.2, 0.5406, -24.4)
+
+[node name="Scree41_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(1.3722, 0, -2.3574, 0, 3.6411, 0, 2.3574, 0, 1.3722, 2.8454, -0.01, -24.2148)
+
+[node name="Scree41_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(1.3859, 0, 2.3808, 0, 3.2999, 0, -2.3808, 0, 1.3859, 3.381, -0.01, -24.0433)
 
 [node name="crates42" parent="." instance=ExtResource("e8")]
 transform = Transform3D(-0.9848, 0, 0.1736, 0, 1, 0, -0.1736, 0, -0.9848, 12, 0, -19.6)
@@ -311,6 +342,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.6, 0, -19.9)
 [node name="Support50" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -27)
 
+[node name="WallRock50_2" parent="." instance=ExtResource("r1")]
+transform = Transform3D(2.0611, 0, -0.5569, 0, 1.9999, 0, 0.5569, 0, 2.0611, 1.3, -0.03, -27.54)
 [node name="Post51" type="MeshInstance3D" parent="Support50"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -334,6 +367,11 @@ metadata/surf = "wood"
 [node name="Support55" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -31)
 
+[node name="WallRock55_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.5491, 0, -1.2715, 0, 4.0117, 0, 1.2715, 0, 3.5491, -1.3, -0.03, -31.4917)
+
+[node name="WallRock55_2" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.9054, 0, 0.4788, 0, 1.8548, 0, -0.4788, 0, 1.9054, 1.3, -0.03, -31.4756)
 [node name="Post56" type="MeshInstance3D" parent="Support55"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -357,6 +395,11 @@ metadata/surf = "wood"
 [node name="Support60" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -35)
 
+[node name="WallRock60_0" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.6052, 0, -0.1464, 0, 1.38, 0, 0.1464, 0, 1.6052, -1.3, -0.03, -35.744)
+
+[node name="WallRock60_2" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.1183, 0, -0.7365, 0, 5.3462, 0, 0.7365, 0, 3.1183, 1.3, -0.03, -34.4446)
 [node name="Post61" type="MeshInstance3D" parent="Support60"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -464,6 +507,8 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2.7, 0, -38.4)
 [node name="Support83" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -46)
 
+[node name="WallRock83_2" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.8046, 0, 0.3216, 0, 4.0727, 0, -0.3216, 0, 3.8046, 1.3, -0.03, -46.5033)
 [node name="Post84" type="MeshInstance3D" parent="Support83"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -487,6 +532,11 @@ metadata/surf = "wood"
 [node name="Support88" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -49)
 
+[node name="WallRock88_0" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.6642, 0, 0.1979, 0, 1.824, 0, -0.1979, 0, 1.6642, -1.3, -0.03, -48.3129)
+
+[node name="WallRock88_2" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.8306, 0, -0.4086, 0, 1.7712, 0, 0.4086, 0, 1.8306, 1.3, -0.03, -49.6646)
 [node name="Post89" type="MeshInstance3D" parent="Support88"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -507,25 +557,41 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 0)
 mesh = SubResource("s10")
 metadata/surf = "wood"
 
-[node name="Stalagmite93" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0.7, -52)
-mesh = SubResource("s19")
-metadata/surf = "rock"
+[node name="RockSpire93" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.2574, -4.0544, -0.0561, 0, -0.0553, 4.5934, -3.6731, -1.3879, -0.0192, -9.2, 0.7769, -52)
 
-[node name="Stalagmite94" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.3, 0.6, -52.6)
-mesh = SubResource("s20")
-metadata/surf = "rock"
+[node name="Scree93_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-0.8394, 0, -3.1037, 0, 3.7518, 0, 3.1037, 0, -0.8394, -8.8267, -0.01, -51.6983)
 
-[node name="Stalagmite95" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.3, 0.85, -84.5)
-mesh = SubResource("s21")
-metadata/surf = "rock"
+[node name="Scree93_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-2.4676, 0, 1.1197, 0, 2.3195, 0, -1.1197, 0, -2.4676, -8.7248, -0.01, -51.932)
 
-[node name="Stalagmite96" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.2, 0.65, -85)
-mesh = SubResource("s11")
-metadata/surf = "rock"
+[node name="RockSpire94" parent="." instance=ExtResource("r1")]
+transform = Transform3D(3.8031, 0.8599, -0.0485, 0, 0.2628, 3.9301, 0.7805, -4.1903, 0.2365, 13.3, 0.6587, -52.6)
+
+[node name="Scree94_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(0.974, 0, 3.0348, 0, 2.9885, 0, -3.0348, 0, 0.974, 12.8201, -0.01, -52.6078)
+
+[node name="Scree94_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-1.9553, 0, -2.5854, 0, 2.6062, 0, 2.5854, 0, -1.9553, 12.8263, -0.01, -52.6773)
+
+[node name="RockSpire95" parent="." instance=ExtResource("r1")]
+transform = Transform3D(-3.4318, 3.2475, -0.3566, 0, 0.4898, 5.5513, 2.9561, 3.7701, -0.414, -9.3, 0.9541, -84.5)
+
+[node name="Scree95_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.4743, 0, -0.4116, 0, 3.2684, 0, 0.4116, 0, 3.4743, -9.3236, -0.01, -85.0595)
+
+[node name="Scree95_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(2.9335, 0, -0.4399, 0, 3.0302, 0, 0.4399, 0, 2.9335, -9.461, -0.01, -83.9637)
+
+[node name="RockSpire96" parent="." instance=ExtResource("r1")]
+transform = Transform3D(3.6224, 1.5365, -0.1289, 0, 0.3601, 4.2505, 1.3969, -3.9846, 0.3344, 13.2, 0.7178, -85)
+
+[node name="Scree96_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(2.9614, 0, -0.8288, 0, 3.9053, 0, 0.8288, 0, 2.9614, 12.7225, -0.01, -85.049)
+
+[node name="Scree96_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(1.1334, 0, 3.1885, 0, 3.4584, 0, -3.1885, 0, 1.1334, 13.0637, -0.01, -84.5398)
 
 [node name="rubble97" parent="." instance=ExtResource("e12")]
 transform = Transform3D(0.866, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866, -8.5, 0, -70)
@@ -539,20 +605,14 @@ transform = Transform3D(-0.1736, 0, 0.9848, 0, 1, 0, -0.9848, 0, -0.1736, 13, 0,
 [node name="barrel_large100" parent="." instance=ExtResource("e13")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0, -58)
 
-[node name="Boulder101" type="MeshInstance3D" parent="."]
-transform = Transform3D(1.4, 0, 0, 0, 0.98, 0, 0, 0, 1.19, -5.5, 0.49, -78)
-mesh = SubResource("s22")
-metadata/surf = "rock"
+[node name="Boulder101" parent="." instance=ExtResource("r3")]
+transform = Transform3D(1.2126, 0, 0, 0, 1.029, 0, 0, 0, 0.8454, -5.5, 0.022, -78)
 
-[node name="Boulder102" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.866, 0, 0.425, 0, 0.7, 0, -0.5, 0, 0.7361, 8.5, 0.35, -54)
-mesh = SubResource("s22")
-metadata/surf = "rock"
+[node name="Boulder102" parent="." instance=ExtResource("r3")]
+transform = Transform3D(0.7501, 0, 0.3019, 0, 0.735, 0, -0.4331, 0, 0.5229, 8.5, 0.0014, -54)
 
-[node name="Boulder103" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.3078, 0, 0.7189, 0, 0.63, 0, -0.8457, 0, 0.2616, -6, 0.315, -56)
-mesh = SubResource("s22")
-metadata/surf = "rock"
+[node name="Boulder103" parent="." instance=ExtResource("r3")]
+transform = Transform3D(0.2666, 0, 0.5107, 0, 0.6615, 0, -0.7325, 0, 0.1859, -6, -0.0037, -56)
 
 [node name="barrel_small104" parent="." instance=ExtResource("e9") groups=["shifting"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.2, 0, -66.2)
@@ -604,6 +664,11 @@ metadata/surf = "wood"
 [node name="Support117" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -91)
 
+[node name="WallRock117_0" parent="." instance=ExtResource("r1")]
+transform = Transform3D(2.2172, 0, 0.3408, 0, 2.2645, 0, -0.3408, 0, 2.2172, 8.7, -0.03, -90.4309)
+
+[node name="WallRock117_2" parent="." instance=ExtResource("r1")]
+transform = Transform3D(2.0553, 0, -0.7142, 0, 2.1823, 0, 0.7142, 0, 2.0553, 11.3, -0.03, -90.3481)
 [node name="Post118" type="MeshInstance3D" parent="Support117"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -627,6 +692,11 @@ metadata/surf = "wood"
 [node name="Support122" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -94)
 
+[node name="WallRock122_0" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.8285, 0, 0.4932, 0, 1.6037, 0, -0.4932, 0, 1.8285, 8.7, -0.03, -93.3301)
+
+[node name="WallRock122_2" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.5561, 0, 0.3774, 0, 6.4234, 0, -0.3774, 0, 3.5561, 11.3, -0.03, -93.4678)
 [node name="Post123" type="MeshInstance3D" parent="Support122"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -661,6 +731,11 @@ metadata/surf = "rope"
 [node name="Support130" type="Node3D" parent="."]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2, 0, -99.5)
 
+[node name="WallRock130_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-1.0531, 0, 4.1137, 0, 5.0953, 0, -4.1137, 0, -1.0531, 1.2604, -0.03, -98.2)
+
+[node name="WallRock130_2" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-0.5321, 0, 4.2778, 0, 5.6487, 0, -4.2778, 0, -0.5321, 1.4396, -0.03, -100.8)
 [node name="Post131" type="MeshInstance3D" parent="Support130"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -733,6 +808,8 @@ metadata/surf = "wood"
 [node name="Support146" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 3, -135)
 
+[node name="WallRock146_0" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.8236, 0, 0.6131, 0, 2.2076, 0, -0.6131, 0, 1.8236, -4.8, 2.97, -135.6555)
 [node name="Post147" type="MeshInstance3D" parent="Support146"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -756,6 +833,8 @@ metadata/surf = "wood"
 [node name="Support151" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, 3, -139)
 
+[node name="WallRock151_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.4441, 0, 1.2022, 0, 3.7609, 0, -1.2022, 0, 3.4441, -4.8, 2.97, -138.2905)
 [node name="Post152" type="MeshInstance3D" parent="Support151"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -782,10 +861,14 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -9.2, 3, -149.7)
 [node name="rubble157" parent="." instance=ExtResource("e12")]
 transform = Transform3D(-0.6428, 0, 0.766, 0, 1, 0, -0.766, 0, -0.6428, 9.2, 3, -141)
 
-[node name="Stalagmite158" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.3, 3.7, -141)
-mesh = SubResource("s19")
-metadata/surf = "rock"
+[node name="RockSpire158" parent="." instance=ExtResource("r1")]
+transform = Transform3D(-2.2095, 3.5221, 0.1212, 0, -0.1375, 4.5914, 3.1923, 2.4378, 0.0839, -9.3, 3.7769, -141)
+
+[node name="Scree158_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-0.5361, 0, -3.2974, 0, 3.8747, 0, 3.2974, 0, -0.5361, -9.0729, 2.99, -141.4229)
+
+[node name="Scree158_1" parent="." instance=ExtResource("r2")]
+transform = Transform3D(-1.6327, 0, 2.043, 0, 2.605, 0, -2.043, 0, -1.6327, -9.5024, 2.99, -140.5648)
 
 [node name="Bones159" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 3, -149.4)
@@ -808,6 +891,11 @@ transform = Transform3D(-0.75, 0, 1.299, 0, 1.5, 0, -1.299, 0, -0.75, 0.5, 0.02,
 [node name="Support165" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 3, -153)
 
+[node name="WallRock165_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.6212, 0, 1.1793, 0, 4.287, 0, -1.1793, 0, 3.6212, 6.7, 2.97, -153.725)
+
+[node name="WallRock165_2" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.7694, 0, 0.3578, 0, 1.5717, 0, -0.3578, 0, 1.7694, 9.3, 2.97, -153.4799)
 [node name="Post166" type="MeshInstance3D" parent="Support165"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -831,6 +919,11 @@ metadata/surf = "wood"
 [node name="Support170" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 3, -157)
 
+[node name="WallRock170_0" parent="." instance=ExtResource("r2")]
+transform = Transform3D(3.4273, 0, 0.3844, 0, 3.9198, 0, -0.3844, 0, 3.4273, 6.7, 2.97, -157.4672)
+
+[node name="WallRock170_2" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.8382, 0, 0.7726, 0, 2.3418, 0, -0.7726, 0, 1.8382, 9.3, 2.97, -157.6708)
 [node name="Post171" type="MeshInstance3D" parent="Support170"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
@@ -854,6 +947,8 @@ metadata/surf = "wood"
 [node name="Support175" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 3, -161)
 
+[node name="WallRock175_2" parent="." instance=ExtResource("r1")]
+transform = Transform3D(1.674, 0, 0.2631, 0, 1.6541, 0, -0.2631, 0, 1.674, 9.3, 2.97, -160.4846)
 [node name="Post176" type="MeshInstance3D" parent="Support175"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 1.65, 0)
 mesh = SubResource("s8")
