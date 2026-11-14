@@ -22,19 +22,22 @@ var _buttons: Array[Button] = []
 var _credits: Control
 
 
+## Starts hidden; show_end() builds everything.
 func _ready() -> void:
 	Style.full_rect(self)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
 
 
+## Builds and plays the end screen. Totals are counted by the UI.
 func show_end(can_go_deeper: bool, total_logs: int, total_crystals: int) -> void:
-	for c in get_children():
-		c.queue_free()
+	for child in get_children():
+		child.queue_free()
 	_reveal.clear()
 	_buttons.clear()
 	visible = true
 
+	# Dark shade on the left half so the text is readable over the daylight.
 	var shade := Style.full_rect(ColorRect.new()) as ColorRect
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sh := Shader.new()
@@ -76,12 +79,21 @@ func show_end(can_go_deeper: bool, total_logs: int, total_crystals: int) -> void
 		_stat("Echo crystals", "%d / %d" % [Game.crystals_found, total_crystals])
 	_stat("Mara's logs", "%d / %d" % [Game.logs_found.size(), total_logs])
 	_stat("Journal pages", "%d / %d" % [journals, journal_total])
-	var secrets := Game.logs_found.size() + journals + Game.crystals_found
-	var secrets_total := total_logs + journal_total + total_crystals
-	var full := secrets_total > 0 and secrets >= secrets_total
-	_stat("Secrets", "%d / %d%s" % [secrets, secrets_total, "    100%" if full else ""])
+	# Secrets = logs + journal pages + echo crystals.
+	var secrets: int = Game.logs_found.size() + journals + Game.crystals_found
+	var secrets_total: int = total_logs + journal_total + total_crystals
+	var full: bool = false
+	if secrets_total > 0 and secrets >= secrets_total:
+		full = true
+	var secrets_text: String = "%d / %d" % [secrets, secrets_total]
+	if full:
+		secrets_text += "    100%"
+	_stat("Secrets", secrets_text)
 	if Game.best_time > 0.0:
-		_stat("Best time", Style.format_time(Game.best_time, true) + ("    NEW BEST" if Game.new_best else ""))
+		var best_text: String = Style.format_time(Game.best_time, true)
+		if Game.new_best:
+			best_text += "    NEW BEST"
+		_stat("Best time", best_text)
 	if Game.challenge != "":
 		_stat("Challenge", Game.challenge_name())
 	_gap(10)
@@ -121,16 +133,13 @@ func show_end(can_go_deeper: bool, total_logs: int, total_crystals: int) -> void
 	row.add_theme_constant_override("separation", 24)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_add_reveal(row)
-	_button(row, "PLAY AGAIN", func(): play_again_pressed.emit())
+	_button(row, "PLAY AGAIN", _emit_play_again)
 	if can_go_deeper:
-		_button(row, "GO DEEPER", func(): deeper_pressed.emit())
-	_button(row, "MAIN MENU", func(): menu_pressed.emit())
-	for i in _buttons.size():
-		var b := _buttons[i]
-		var prev := _buttons[(i - 1 + _buttons.size()) % _buttons.size()]
-		var next := _buttons[(i + 1) % _buttons.size()]
-		b.focus_neighbor_left = b.get_path_to(prev)
-		b.focus_neighbor_right = b.get_path_to(next)
+		_button(row, "GO DEEPER", _emit_deeper)
+	_button(row, "MAIN MENU", _emit_menu)
+	_link_buttons()
+
+	# The credits roll in a column on the right.
 
 	_credits = Credits.new()
 	_credits.set("embedded", true)
@@ -149,6 +158,35 @@ func show_end(can_go_deeper: bool, total_logs: int, total_crystals: int) -> void
 	_play()
 
 
+## Left / right moves between the buttons (wrapping around).
+func _link_buttons() -> void:
+	var count: int = _buttons.size()
+	for i in range(count):
+		var prev_index: int = i - 1
+		if prev_index < 0:
+			prev_index = count - 1
+		var next_index: int = i + 1
+		if next_index >= count:
+			next_index = 0
+		var b: Button = _buttons[i]
+		b.focus_neighbor_left = b.get_path_to(_buttons[prev_index])
+		b.focus_neighbor_right = b.get_path_to(_buttons[next_index])
+
+
+## What each button does when chosen.
+func _emit_play_again() -> void:
+	play_again_pressed.emit()
+
+
+func _emit_deeper() -> void:
+	deeper_pressed.emit()
+
+
+func _emit_menu() -> void:
+	menu_pressed.emit()
+
+
+## Empty space of height `h` in the column.
 func _gap(h: float) -> void:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0, h)
@@ -156,12 +194,14 @@ func _gap(h: float) -> void:
 	_column.add_child(c)
 
 
+## Adds a control that starts invisible and fades in with the others.
 func _add_reveal(c: Control) -> void:
 	c.modulate.a = 0.0
 	_column.add_child(c)
 	_reveal.append(c)
 
 
+## One "Name    value" stat line.
 func _stat(name_text: String, value: String) -> void:
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -172,11 +212,18 @@ func _stat(name_text: String, value: String) -> void:
 	_add_reveal(row)
 
 
+## One challenge line: gold with a bullet when done, grey otherwise.
 func _challenge(text: String, done: bool) -> void:
-	var l := Style.label(("•  " if done else "·  ") + text, 18, Style.GOLD if done else Color(0.5, 0.53, 0.56), HORIZONTAL_ALIGNMENT_LEFT)
+	var line_text: String = "·  " + text
+	var color: Color = Color(0.5, 0.53, 0.56)
+	if done:
+		line_text = "•  " + text
+		color = Style.GOLD
+	var l := Style.label(line_text, 18, color, HORIZONTAL_ALIGNMENT_LEFT)
 	_add_reveal(l)
 
 
+## Adds one button to the bottom row.
 func _button(row: HBoxContainer, text: String, action: Callable) -> void:
 	var b := Style.chalk_button(text, 24)
 	b.pressed.connect(_on_pressed.bind(action))
@@ -186,15 +233,18 @@ func _button(row: HBoxContainer, text: String, action: Callable) -> void:
 	_buttons.append(b)
 
 
+## Click sound, then the button's action.
 func _on_pressed(action: Callable) -> void:
 	Sfx.play("ui_click", -6.0)
 	action.call()
 
 
+## Hover / focus sound.
 func _on_hover() -> void:
 	Sfx.play("ui_hover", -12.0)
 
 
+## Fades in the title, then each line one by one, then the credits.
 func _play() -> void:
 	var tw := create_tween()
 	tw.tween_property(_title, "modulate:a", 1.0, 1.8)
@@ -206,6 +256,7 @@ func _play() -> void:
 	tw.tween_property(_credits, "modulate:a", 1.0, 1.5)
 
 
+## Focuses the first button.
 func _focus_first() -> void:
 	if not _buttons.is_empty():
 		_buttons[0].grab_focus()

@@ -42,6 +42,7 @@ var _won := false
 var _wind_captioned := false
 
 
+## Creates all the sound players and connects to the game's signals.
 func _ready() -> void:
 	_drone = _loop_player(&"Ambience", true)
 	_shepard = _loop_player(&"Ambience", false)
@@ -49,7 +50,19 @@ func _ready() -> void:
 	_tape = _loop_player(&"Voice", false)
 	_birds = _loop_player(&"Ambience", true)
 	_day_wind = _loop_player(&"Ambience", true)
+	_make_exit_wind()
+	_make_drips()
 
+	Game.zone_entered.connect(_on_zone)
+	Game.level_event.connect(_on_level_event)
+	Game.voice_log.connect(_on_voice_log)
+	Game.game_won.connect(_on_won)
+	Sfx.set_ambience_gain(0.0)
+	Sfx.set_reverb("drop", 0.05)
+
+
+## The wind player, placed a little above the level's exit.
+func _make_exit_wind() -> void:
 	_wind = AudioStreamPlayer3D.new()
 	_wind.bus = &"Ambience"
 	# Loudness is set by hand from the distance (below); the 3D player only pans.
@@ -62,7 +75,11 @@ func _ready() -> void:
 	if _exit:
 		_wind.global_position = _exit.global_position + Vector3.UP * 3.0
 
-	for m in (get_tree().get_nodes_in_group("drip_source") as Array):
+
+## One drip player at every "drip_source" marker, each with its own timer.
+func _make_drips() -> void:
+	var markers: Array = get_tree().get_nodes_in_group("drip_source")
+	for m in markers:
 		var marker := m as Node3D
 		if marker == null:
 			continue
@@ -75,14 +92,8 @@ func _ready() -> void:
 		_drips.append(d)
 		_drip_wait.append(randf_range(0.5, 4.0))
 
-	Game.zone_entered.connect(_on_zone)
-	Game.level_event.connect(_on_level_event)
-	Game.voice_log.connect(_on_voice_log)
-	Game.game_won.connect(_on_won)
-	Sfx.set_ambience_gain(0.0)
-	Sfx.set_reverb("drop", 0.05)
 
-
+## A silent 2D player on the given bus (optionally kept running while paused).
 func _loop_player(bus: StringName, keep_during_pause: bool) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
 	p.bus = bus
@@ -98,6 +109,7 @@ func is_silent() -> bool:
 	return _silence_left > 0.0
 
 
+## Gives every player its sound once the Sfx bank is ready.
 func _assign_streams() -> void:
 	_streams_ready = true
 	_drone.stream = Sfx.stream("drone")
@@ -111,6 +123,7 @@ func _assign_streams() -> void:
 		d.stream = drip
 
 
+## Every frame: update each layer of the ambience.
 func _process(delta: float) -> void:
 	if not _streams_ready:
 		# Sounds are synthesized over the first frames; wait for them, then start.
@@ -133,6 +146,7 @@ func _process(delta: float) -> void:
 	_update_ending(delta)
 
 
+## Lowers the whole ambience under voice logs, and cuts it during silences.
 func _update_duck(delta: float) -> void:
 	_silence_left = maxf(_silence_left - delta, 0.0)
 	var want := 0.0
@@ -149,6 +163,7 @@ func _update_duck(delta: float) -> void:
 	Sfx.set_ambience_gain(_duck_db)
 
 
+## The cave drone: louder with dread, fades out after winning.
 func _update_drone(delta: float, playing: bool, dread: float) -> void:
 	if _won:
 		_drone.volume_db = move_toward(_drone.volume_db, -80.0, delta * 15.0)
@@ -157,9 +172,11 @@ func _update_drone(delta: float, playing: bool, dread: float) -> void:
 		return
 	if playing and not _drone.playing:
 		_drone.play()
-	_drone.volume_db = move_toward(_drone.volume_db, lerpf(-21.0, -11.0, dread), delta * 12.0)
+	var target_db := lerpf(-21.0, -11.0, dread)
+	_drone.volume_db = move_toward(_drone.volume_db, target_db, delta * 12.0)
 
 
+## Each drip plays now and then (only when the player is close enough).
 func _update_drips(delta: float, playing: bool) -> void:
 	if not playing or _silence_left > 0.0 or player == null:
 		return
@@ -169,19 +186,23 @@ func _update_drips(delta: float, playing: bool) -> void:
 			continue
 		_drip_wait[i] = randf_range(1.8, 6.5)
 		var d := _drips[i]
-		if d.global_position.distance_to(player.global_position) < DRIP_RANGE:
+		var distance := d.global_position.distance_to(player.global_position)
+		if distance < DRIP_RANGE:
 			d.pitch_scale = randf_range(0.8, 1.25)
 			d.volume_db = randf_range(-13.0, -7.0)
 			d.play()
 
 
+## Wind from the exit: louder the closer the player gets.
 func _update_wind(delta: float) -> void:
 	if _exit == null or player == null:
 		return
 	var dist := player.global_position.distance_to(_exit.global_position)
+	# 0 = WIND_RANGE meters or more away, 1 = standing at the exit.
 	var near := clampf(1.0 - dist / WIND_RANGE, 0.0, 1.0)
 	var want := -80.0
-	if not _won and (_last_zone or near > 0.0):
+	var should_hear := _last_zone or near > 0.0
+	if not _won and should_hear:
 		want = lerpf(-30.0, -7.0, near)
 	_wind.volume_db = move_toward(_wind.volume_db, want, delta * 10.0)
 	if _wind.volume_db > -70.0 and not _wind.playing and _wind.stream != null:
@@ -193,13 +214,18 @@ func _update_wind(delta: float) -> void:
 		_wind.stop()
 
 
+## The rising Shepard tone: in the last zone, or when dread is high.
 func _update_shepard(delta: float, playing: bool, dread: float) -> void:
-	var active := playing and not _won and (_last_zone or dread > 0.65)
+	var wanted_here := _last_zone or dread > 0.65
+	var active := playing and not _won and wanted_here
 	var want := -80.0
 	if active:
 		if _last_zone:
+			# Slowly climbs from 0 to 1 over 90 seconds in the last zone.
 			_shepard_rise = minf(_shepard_rise + delta / 90.0, 1.0)
-		var level := maxf(_shepard_rise, clampf((dread - 0.65) / 0.35, 0.0, 1.0) * 0.6)
+		# High dread (0.65 .. 1.0) adds up to 0.6 on its own.
+		var dread_part := clampf((dread - 0.65) / 0.35, 0.0, 1.0) * 0.6
+		var level := maxf(_shepard_rise, dread_part)
 		want = lerpf(-30.0, -17.0, level)
 	_shepard.volume_db = move_toward(_shepard.volume_db, want, delta * 6.0)
 	if _shepard.volume_db > -70.0 and not _shepard.playing and _shepard.stream != null:
@@ -208,6 +234,7 @@ func _update_shepard(delta: float, playing: bool, dread: float) -> void:
 		_shepard.stop()
 
 
+## Tape hiss under voice logs; Mara's last log ends in a hard cut.
 func _update_voice(delta: float) -> void:
 	if _voice_left <= 0.0:
 		_tape.volume_db = move_toward(_tape.volume_db, -80.0, delta * 40.0)
@@ -223,21 +250,26 @@ func _update_voice(delta: float) -> void:
 	_tape.stop()
 	_tape.volume_db = -80.0
 	_silence_left = LAST_LOG_SILENCE
-	for l in (get_tree().get_nodes_in_group("listener") as Array):
+	var listeners: Array = get_tree().get_nodes_in_group("listener")
+	for l in listeners:
 		if l.has_method("hush"):
 			l.hush(LAST_LOG_SILENCE, 3.0)
 	if player:
 		Sfx.caption("[the recording cuts off]", player.global_position, 0.0)
 
 
+## After the Hall's silence, caption the breathing that fades back in.
 func _update_hall(delta: float) -> void:
 	if _hall_breath_in < 0.0:
 		return
 	_hall_breath_in -= delta
-	if _hall_breath_in < 0.0 and _hall_listener != null and is_instance_valid(_hall_listener):
+	if _hall_breath_in >= 0.0:
+		return
+	if _hall_listener != null and is_instance_valid(_hall_listener):
 		Sfx.caption("[slow breathing, somewhere ahead]", _hall_listener.global_position, 0.0)
 
 
+## Birdsong and daylight wind fade in after winning.
 func _update_ending(delta: float) -> void:
 	if not _won:
 		return
@@ -245,15 +277,19 @@ func _update_ending(delta: float) -> void:
 	_day_wind.volume_db = move_toward(_day_wind.volume_db, -15.0, delta * 8.0)
 
 
+## New zone: remember if it's the last one and change the reverb.
 func _on_zone(zone_name: String) -> void:
 	var z := zone_name.to_upper()
 	_last_zone = false
 	for w in LAST_ZONE_WORDS:
-		if str(w) in z:
+		var word := str(w)
+		if word in z:
 			_last_zone = true
-	Sfx.set_reverb(_preset_for(z), 2.5)
+	var preset := _preset_for(z)
+	Sfx.set_reverb(preset, 2.5)
 
 
+## Which reverb preset fits a zone name.
 func _preset_for(z: String) -> String:
 	if "HALL" in z:
 		return "hall"
@@ -264,6 +300,7 @@ func _preset_for(z: String) -> String:
 	return "tunnel"
 
 
+## Level events this script cares about.
 func _on_level_event(event_name: String) -> void:
 	if event_name == "hall_silence":
 		_hall_silence()
@@ -274,7 +311,8 @@ func _on_level_event(event_name: String) -> void:
 func _hall_silence() -> void:
 	_silence_left = HALL_SILENCE
 	_hall_listener = _nearest_awake_listener()
-	for l in (get_tree().get_nodes_in_group("listener") as Array):
+	var listeners: Array = get_tree().get_nodes_in_group("listener")
+	for l in listeners:
 		if l.has_method("hush"):
 			l.hush(HALL_SILENCE, 2.5)
 	if _hall_listener != null and _hall_listener.has_method("hush"):
@@ -284,12 +322,14 @@ func _hall_silence() -> void:
 		Sfx.caption("[sudden silence]", player.global_position, 0.0)
 
 
+## The closest Listener that isn't asleep (or null).
 func _nearest_awake_listener() -> Node3D:
 	if player == null:
 		return null
 	var best: Node3D = null
 	var best_d := INF
-	for l in (get_tree().get_nodes_in_group("listener") as Array):
+	var listeners: Array = get_tree().get_nodes_in_group("listener")
+	for l in listeners:
 		var n := l as Node3D
 		if n == null or n.get("asleep") == true:
 			continue
@@ -300,15 +340,23 @@ func _nearest_awake_listener() -> Node3D:
 	return best
 
 
+## A voice log started: run the tape hiss for about as long as it lasts.
 func _on_voice_log(index: int, text: String) -> void:
 	# Logs play elsewhere; estimate their length from the subtitle text.
-	_voice_left = clampf(1.5 + text.length() * 0.07, 3.0, 25.0)
+	var estimate := 1.5 + text.length() * 0.07
+	_voice_left = clampf(estimate, 3.0, 25.0)
 	if _tape.stream != null and not _tape.playing:
-		_tape.play(randf() * 3.0)
+		var start_at := randf() * 3.0
+		_tape.play(start_at)
+	# The last log (number 8, or one ending mid-word with "-") cuts off hard.
 	var t := text.strip_edges()
-	_cut_pending = index == 8 or t.ends_with("-")
+	if index == 8 or t.ends_with("-"):
+		_cut_pending = true
+	else:
+		_cut_pending = false
 
 
+## The player won: switch to the outdoor ending sounds.
 func _on_won() -> void:
 	_won = true
 	_voice_left = 0.0

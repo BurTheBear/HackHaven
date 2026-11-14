@@ -7,10 +7,14 @@ const STEEL := Color(0.78, 0.86, 0.95)
 const GRIP := Color(0.42, 0.3, 0.18)
 
 
+## Makes a flat (unshaded) material. `energy` makes the color brighter or darker.
 static func make_material(color: Color, energy: float = 1.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(color.r * energy, color.g * energy, color.b * energy, 1.0)
+	var red := color.r * energy
+	var green := color.g * energy
+	var blue := color.b * energy
+	m.albedo_color = Color(red, green, blue, 1.0)
 	return m
 
 
@@ -49,6 +53,7 @@ static func build(blade_mat: Material, grip_mat: Material = null) -> Node3D:
 	return root
 
 
+## Adds one piece of the dagger (a mesh) to `root` at a position and rotation.
 static func _part(root: Node3D, mesh: Mesh, pos: Vector3, rot_deg: Vector3, mat: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh

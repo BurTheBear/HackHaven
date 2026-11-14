@@ -99,6 +99,18 @@ float soft(float x, float w) {
 	return exp(-k * k);
 }
 
+// The ring's eased position: for a ring that has travelled `y` (0..1) of its
+// way out, how far through its travel TIME it is (0..1). This undoes the
+// ease used for the ring radius, so we can tell when the ring passed a point.
+float time_fraction_at(float y) {
+	if (y >= 1.0) {
+		return 1.0;
+	}
+	float a = 1.0 + EASE_B;
+	float root = sqrt(a * a - 4.0 * EASE_B * y);
+	return (a - root) / (2.0 * EASE_B);
+}
+
 // One ping at `pos`. x = ring, y = afterglow, z = soft leading glow, w = memory.
 // One soft ring eases out to max_r and fades there; a faint soft ring then
 // drifts back toward the origin. Surfaces brighten gently as the ring passes
@@ -112,11 +124,14 @@ vec4 ping_light(vec3 pos, vec4 p, float max_r, float pebble) {
 	if (d > max_r * 1.08) {
 		return vec4(0.0);
 	}
+	// t = seconds since the ping, T = how long the ring takes to reach max_r.
 	float t = p.w;
 	float T = max_r / ping_speed;
 	float x = t / T;
+	// u = how far past the end the ring is (0 while still travelling).
 	float u = max(x - 1.0, 0.0);
 	float xc = min(x, 1.0);
+	// Current ring radius (eased so it slows down near the end).
 	float r = max_r * (xc + EASE_B * xc * (1.0 - xc));
 	// > 0: the ring hasn't reached this point yet (nothing else has either).
 	float ahead = d - r;
@@ -133,7 +148,11 @@ vec4 ping_light(vec3 pos, vec4 p, float max_r, float pebble) {
 	float out_amp = 1.0 - smoothstep(0.0, 0.45, u);
 	float w = ring_width * thin;
 	// Wide soft band: a little tighter in front, a long soft tail behind.
-	float ring = soft(ahead, ahead > 0.0 ? w * 0.6 : w * 1.5) * out_amp;
+	float band_width = w * 1.5;
+	if (ahead > 0.0) {
+		band_width = w * 0.6;
+	}
+	float ring = soft(ahead, band_width) * out_amp;
 	// The leading edge is a soft glow, not a line.
 	float lead = soft(ahead - 0.05, w * 0.45) * out_amp * 0.4;
 	// Bounce back: one faint, soft ring drifting from max_r toward the origin.
@@ -143,26 +162,33 @@ vec4 ping_light(vec3 pos, vec4 p, float max_r, float pebble) {
 		float rb = max_r - (t - tb0) * ping_speed * BACK_SPEED;
 		if (rb > -ring_width) {
 			float prog = clamp(1.0 - rb / max_r, 0.0, 1.0);
-			float amp = 0.2 * extra * smoothstep(0.0, 0.15, prog) * (1.0 - smoothstep(0.4, 1.0, prog));
+			float fade_in = smoothstep(0.0, 0.15, prog);
+			float fade_out = 1.0 - smoothstep(0.4, 1.0, prog);
+			float amp = 0.2 * extra * fade_in * fade_out;
 			back = soft(d - rb, w * 1.1) * amp;
 		}
 	}
 	// Seconds since the main ring passed this point (invert the ease).
 	float y = d / max_r;
-	float xa = y >= 1.0 ? 1.0 : ((1.0 + EASE_B) - sqrt((1.0 + EASE_B) * (1.0 + EASE_B) - 4.0 * EASE_B * y)) / (2.0 * EASE_B);
+	float xa = time_fraction_at(y);
 	float since = t - xa * T;
 	float passed = smoothstep(-0.1, 0.12, since);
 	float sp = max(since, 0.0);
 	float fade = clamp(sp / afterglow, 0.0, 1.0);
 	float glow = passed * (1.0 - fade) * (1.0 - fade * 0.3) * 0.45;
-	float n = fract(sin(floor(p.w * 14.0) * 12.9898 + p.x * 4.1 + p.z * 1.7) * 43758.5453);
+	// A random number (0..1) that changes 14 times a second: the flicker.
+	float flicker_seed = floor(p.w * 14.0) * 12.9898 + p.x * 4.1 + p.z * 1.7;
+	float n = fract(sin(flicker_seed) * 43758.5453);
 	glow *= 1.0 - flicker * smoothstep(0.35, 1.0, fade) * n;
 	glow *= 1.0 + ripple * 0.6 * sin(d * 4.0 - p.w * 7.0);
 	// A gentle brightening as the ring passes that eases into the afterglow.
 	float k = sp / 0.3;
 	glow += passed * k * exp(1.0 - k) * 0.22;
 	float mem = step(0.0, since) * echo_memory * (1.0 - clamp(sp / memory_time, 0.0, 1.0));
-	return vec4((ring + back) * dim, glow * dim, (lead + back * 0.2) * dim, mem) * edge;
+	float out_ring = (ring + back) * dim;
+	float out_glow = glow * dim;
+	float out_lead = (lead + back * 0.2) * dim;
+	return vec4(out_ring, out_glow, out_lead, mem) * edge;
 }
 
 void fragment() {
@@ -177,19 +203,34 @@ void fragment() {
 	vec4 lp = a0 + a1 + a2 + a3;
 	vec4 lb = b0 + b1 + b2 + b3;
 	// Memory takes the strongest trace, so overlapping pings don't pile up.
-	float mem = max(max(max(a0.w, a1.w), max(a2.w, a3.w)), max(max(b0.w, b1.w), max(b2.w, b3.w)));
+	float mem = a0.w;
+	mem = max(mem, a1.w);
+	mem = max(mem, a2.w);
+	mem = max(mem, a3.w);
+	mem = max(mem, b0.w);
+	mem = max(mem, b1.w);
+	mem = max(mem, b2.w);
+	mem = max(mem, b3.w);
 
 	bool textured = use_triplanar > 0.5 || use_albedo_tex > 0.5 || use_flat > 0.5;
 
+	// World-space grid lines (1 m apart), skipped on the axis a face points along.
 	vec3 g = wpos * grid_scale;
 	vec3 f = abs(fract(g + 0.5) - 0.5);
 	vec3 gw = fwidth(g) * 1.5;
-	vec3 lines = (vec3(1.0) - smoothstep(vec3(0.0), gw, f)) * (vec3(1.0) - step(vec3(0.9), abs(wnorm)));
+	vec3 near_line = vec3(1.0) - smoothstep(vec3(0.0), gw, f);
+	vec3 not_facing = vec3(1.0) - step(vec3(0.9), abs(wnorm));
+	vec3 lines = near_line * not_facing;
 	float grid = max(max(lines.x, lines.y), lines.z) * use_grid;
 	float rim = 1.0 - abs(dot(NORMAL, VIEW));
-	float detail = textured ? 1.0 : (0.3 + 0.7 * grid + 0.5 * rim);
+	float detail = 1.0;
 	// Textured surfaces keep only a very faint grid.
-	float gk = textured ? 0.15 * grid : grid;
+	float gk = grid;
+	if (textured) {
+		gk = 0.15 * grid;
+	} else {
+		detail = 0.3 + 0.7 * grid + 0.5 * rim;
+	}
 
 	float to_player = distance(wpos, player_pos);
 	float close = 1.0 + close_boost * (1.0 - smoothstep(1.0, 3.5, to_player));
@@ -198,16 +239,19 @@ void fragment() {
 
 	float floor_up = step(0.7, wnorm.y);
 	// Footstep glow: each step briefly lights the floor around the player.
-	float near = (1.0 - smoothstep(0.6, 1.6, to_player)) * floor_up * near_glow * step_glow * (0.4 + gk);
+	float near_player = 1.0 - smoothstep(0.6, 1.6, to_player);
+	float near = near_player * floor_up * near_glow * step_glow * (0.4 + gk);
 	// Assist outline (Settings.hint_glow): the floor and the foot of the
 	// walls within a few meters, so nobody gets completely lost.
 	float around = 1.0 - smoothstep(1.5, 4.0, distance(wpos.xz, player_pos.xz));
 	float height = wpos.y - player_pos.y;
 	float wall_foot = (1.0 - floor_up) * step(-0.3, height) * (1.0 - smoothstep(0.05, 0.4, height));
-	float assist = hint_glow * floor_hint * around * (floor_up * (0.08 + 0.5 * gk) + wall_foot * 0.9) * 0.6;
+	float assist_shape = floor_up * (0.08 + 0.5 * gk) + wall_foot * 0.9;
+	float assist = hint_glow * floor_hint * around * assist_shape * 0.6;
 	float memv = mem * (0.35 + 0.65 * gk);
 	float lead = clamp(lp.z + lb.z, 0.0, 1.0);
 
+	// Three looks: the Listener creature, textured cave/props, or plain echo color.
 	vec3 col;
 	if (listener_look > 0.5) {
 		// Dissolve while dying: hashed cells drop out, edges smoulder.
@@ -217,7 +261,10 @@ void fragment() {
 		if (dying > 0.001 && h < cut) {
 			discard;
 		}
-		float burn = dying > 0.001 ? 1.0 - smoothstep(0.0, 0.12, h - cut) : 0.0;
+		float burn = 0.0;
+		if (dying > 0.001) {
+			burn = 1.0 - smoothstep(0.0, 0.12, h - cut);
+		}
 		float L = lp.x * 1.4 + lp.y + lb.x * 1.4 + lb.y + mem * 0.6;
 		float pulse = clamp((lp.x + lb.x) * 1.2 + lead, 0.0, 1.5);
 		vec3 tex = texture(albedo_tex, UV).rgb;
@@ -251,6 +298,8 @@ void fragment() {
 		float light_sum = ip + ib + near + assist + memv + lead;
 		if (light_sum > 0.004) {
 			if (use_triplanar > 0.5) {
+				// Triplanar: sample the textures from the three world axes and
+				// blend them by which way the surface faces.
 				vec3 nn = normalize(wnorm);
 				vec3 wt = pow(abs(nn), vec3(6.0));
 				wt /= (wt.x + wt.y + wt.z);
@@ -268,10 +317,17 @@ void fragment() {
 				vec3 nx = texture(nor_wall, uvx).xyz * 2.0 - 1.0;
 				vec3 nz = texture(nor_wall, uvz).xyz * 2.0 - 1.0;
 				vec3 ty = mix(nw, nf, up);
-				vec3 off = vec3(ty.x, 0.0, ty.y) * wt.y + vec3(0.0, nx.y, nx.x) * wt.x + vec3(nz.x, nz.y, 0.0) * wt.z;
+				// Bend the surface normal by each projection's normal map.
+				vec3 off_y = vec3(ty.x, 0.0, ty.y) * wt.y;
+				vec3 off_x = vec3(0.0, nx.y, nx.x) * wt.x;
+				vec3 off_z = vec3(nz.x, nz.y, 0.0) * wt.z;
+				vec3 off = off_y + off_x + off_z;
 				vec3 pn = normalize(nn + off * normal_strength);
 				vec3 vn = normalize((VIEW_MATRIX * vec4(pn, 0.0)).xyz);
-				float rl = clamp(dot(vn, VIEW), 0.0, 1.0) / max(abs(dot(normalize(NORMAL), VIEW)), 0.3);
+				// Shade = how much the bumpy normal faces us vs. the flat one.
+				float bumpy_facing = clamp(dot(vn, VIEW), 0.0, 1.0);
+				float flat_facing = max(abs(dot(normalize(NORMAL), VIEW)), 0.3);
+				float rl = bumpy_facing / flat_facing;
 				shade = clamp(rl, 0.25, 1.3);
 			} else if (use_albedo_tex > 0.5) {
 				albedo = texture(albedo_tex, UV).rgb * albedo_color;

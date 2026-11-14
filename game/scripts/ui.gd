@@ -226,6 +226,7 @@ var _dmg_numbers: Array = []  ## [{pos: Vector3, text: String, age: float}]
 var _fps_label: Label
 
 
+## Builds every UI layer in code (order = draw order) and connects signals.
 func _ready() -> void:
 	# Keeps running while the tree is paused (menus, pause screen, fades).
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -261,28 +262,41 @@ func _ready() -> void:
 	_opening.add_theme_font_override("font", Style.spaced_font())
 	if ResourceLoader.exists(MAP_PATH):
 		_map = _add_script_control(MAP_PATH)
+	_build_menus()
+	_connect_game_signals()
+	_build_fps_label()
+	Settings.apply_scene()
+	_last_pebbles = Game.pebbles
+	_apply_sub_size()
+	if _map != null and _map.has_method("setup"):
+		_map.call("setup", _player)
+	if _indicators != null and _indicators.has_method("setup"):
+		_indicators.call("setup", _player)
 
+
+## Creates the title, end, pause, settings and credits menus and boot cards.
+func _build_menus() -> void:
 	_title_menu = TitleMenu.new()
 	_title_menu.visible = false
 	root.add_child(_title_menu)
-	_title_menu.begin_pressed.connect(_call_main.bind("begin_new_run"))
-	_title_menu.continue_pressed.connect(_call_main.bind("continue_run"))
-	_title_menu.settings_pressed.connect(_open_settings.bind("title"))
+	_title_menu.begin_pressed.connect(_on_title_begin)
+	_title_menu.continue_pressed.connect(_on_title_continue)
+	_title_menu.settings_pressed.connect(_on_title_settings)
 	_title_menu.credits_pressed.connect(_open_credits)
-	_title_menu.quit_pressed.connect(_call_main.bind("quit_game"))
+	_title_menu.quit_pressed.connect(_on_title_quit)
 
 	_end = EndMenu.new()
 	root.add_child(_end)
-	_end.play_again_pressed.connect(_call_main.bind("play_again"))
-	_end.menu_pressed.connect(_call_main.bind("quit_to_title"))
-	_end.deeper_pressed.connect(_call_main.bind("go_deeper"))
+	_end.play_again_pressed.connect(_on_end_play_again)
+	_end.menu_pressed.connect(_on_quit_to_title)
+	_end.deeper_pressed.connect(_on_end_deeper)
 
 	_pause_menu = PauseMenu.new()
 	root.add_child(_pause_menu)
 	_pause_menu.resume_pressed.connect(_resume)
-	_pause_menu.restart_pressed.connect(_call_main.bind("restart_from_checkpoint"))
-	_pause_menu.settings_pressed.connect(_open_settings.bind("pause"))
-	_pause_menu.quit_pressed.connect(_call_main.bind("quit_to_title"))
+	_pause_menu.restart_pressed.connect(_on_pause_restart)
+	_pause_menu.settings_pressed.connect(_on_pause_settings)
+	_pause_menu.quit_pressed.connect(_on_quit_to_title)
 
 	_settings = SettingsMenu.new()
 	root.add_child(_settings)
@@ -296,6 +310,9 @@ func _ready() -> void:
 	root.add_child(_boot)
 	_boot.finished.connect(_on_boot_finished)
 
+
+## Listens to the game signals the UI reacts to.
+func _connect_game_signals() -> void:
 	Game.pebbles_changed.connect(_on_pebbles_changed)
 	Game.subtitle.connect(_on_subtitle)
 	Game.voice_log.connect(_on_voice_log)
@@ -309,6 +326,10 @@ func _ready() -> void:
 	Echo.ping_emitted.connect(_on_ping)
 	Settings.changed.connect(_apply_sub_size)
 	_connect_combat()
+
+
+## Small FPS counter in the top-left corner (Settings.show_fps).
+func _build_fps_label() -> void:
 	_fps_label = Style.label("", 16, Color(0.75, 0.95, 0.8, 0.85), HORIZONTAL_ALIGNMENT_LEFT)
 	_fps_label.offset_left = 12.0
 	_fps_label.offset_top = 8.0
@@ -316,17 +337,11 @@ func _ready() -> void:
 	_fps_label.offset_bottom = 30.0
 	_fps_label.visible = false
 	root.add_child(_fps_label)
-	Settings.apply_scene()
-	_last_pebbles = Game.pebbles
-	_apply_sub_size()
-	if _map != null and _map.has_method("setup"):
-		_map.call("setup", _player)
-	if _indicators != null and _indicators.has_method("setup"):
-		_indicators.call("setup", _player)
 
 
 # ---------------------------------------------------------------- Building
 
+## A full-screen ColorRect, optionally drawn with a shader.
 func _rect(color: Color, shader_code: String = "") -> ColorRect:
 	var r := ColorRect.new()
 	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -342,6 +357,7 @@ func _rect(color: Color, shader_code: String = "") -> ColorRect:
 	return r
 
 
+## Loads a Control script (map, indicators), adds it full-screen, or returns null.
 func _add_script_control(path: String) -> Control:
 	var script = load(path)
 	if script == null:
@@ -358,6 +374,7 @@ func _add_script_control(path: String) -> Control:
 	return ctl
 
 
+## A centred, hidden label used for typed text on black.
 func _center_label(font_size: int, color: Color, y: float) -> Label:
 	var l := Style.label("", font_size, color)
 	l.anchor_right = 1.0
@@ -375,6 +392,7 @@ func _center_label(font_size: int, color: Color, y: float) -> Label:
 	return l
 
 
+## The HUD drawing layer and the speedrun timer label.
 func _build_hud() -> void:
 	_hud = Style.full_rect(Control.new())
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -391,6 +409,7 @@ func _build_hud() -> void:
 	root.add_child(_timer_label)
 
 
+## Hiding / chase overlay, breath bar, toast text and the presence bar.
 func _build_extras() -> void:
 	_extra = _rect(Color.WHITE, EXTRA_SHADER)
 	_extra.visible = false
@@ -426,6 +445,7 @@ func _build_extras() -> void:
 	_build_presence()
 
 
+## The PRESENCE bar at the bottom of the screen.
 func _build_presence() -> void:
 	_presence_root = Control.new()
 	_presence_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -464,9 +484,14 @@ func _build_presence() -> void:
 	_presence_root.add_child(lbl)
 
 
+## Updates the PRESENCE bar: how close the nearest Listener is.
 func _update_presence(delta: float, live: bool) -> void:
-	var target := _dread if live else 0.0
-	_presence = lerpf(_presence, target, 1.0 - exp(-4.0 * delta))
+	var target := 0.0
+	if live:
+		target = _dread
+	# Smoothly follow the target (frame-rate independent).
+	var follow := 1.0 - exp(-4.0 * delta)
+	_presence = lerpf(_presence, target, follow)
 	var vis := smoothstep(0.02, 0.1, _presence)
 	_presence_root.visible = vis > 0.001 and Settings.presence_bar
 	_presence_root.pivot_offset = _presence_root.size * Vector2(0.5, 1.0)
@@ -487,9 +512,13 @@ func _update_presence(delta: float, live: bool) -> void:
 	_presence_root.modulate.a = vis * pulse
 
 
+## Updates the hiding / chase screen darkening and the breath bar.
 func _update_extras(delta: float, live: bool) -> void:
 	var hiding: bool = live and _pget("is_hiding", false) == true
-	_hide_amt = move_toward(_hide_amt, 0.75 if hiding else 0.0, delta * 2.0)
+	var hide_target := 0.0
+	if hiding:
+		hide_target = 0.75
+	_hide_amt = move_toward(_hide_amt, hide_target, delta * 2.0)
 	var chase_target := 0.0
 	if _chase and live:
 		chase_target = 0.6
@@ -510,6 +539,7 @@ func _update_extras(delta: float, live: bool) -> void:
 	_update_presence(delta, live)
 
 
+## Shows "Journal page found" briefly.
 func _on_journal_page(_index: int, _text: String) -> void:
 	_toast.text = "Journal page found"
 	if _toast_tween != null:
@@ -520,6 +550,7 @@ func _on_journal_page(_index: int, _text: String) -> void:
 	_toast_tween.tween_property(_toast, "modulate:a", 0.0, 0.8)
 
 
+## Chase start / end from the level script.
 func _on_level_event_ui(event_name: String) -> void:
 	if event_name == "chase_start":
 		_chase = true
@@ -527,6 +558,7 @@ func _on_level_event_ui(event_name: String) -> void:
 		_chase = false
 
 
+## The big zone name label near the top.
 func _build_zone() -> void:
 	_zone_label = Style.label("", 40, Color(0.9, 0.95, 1.0))
 	_zone_label.add_theme_font_override("font", Style.spaced_font())
@@ -539,6 +571,7 @@ func _build_zone() -> void:
 	root.add_child(_zone_label)
 
 
+## Thin lines on both sides of the zone name.
 func _draw_zone_lines() -> void:
 	if _zone_label.text == "":
 		return
@@ -550,6 +583,7 @@ func _draw_zone_lines() -> void:
 	_zone_label.draw_line(mid + Vector2(w * 0.5 + 24.0, 0), mid + Vector2(w * 0.5 + 150.0, 0), col, 1.0)
 
 
+## The control prompt box: "[key]  text".
 func _build_prompt() -> void:
 	_prompt_box = PanelContainer.new()
 	_prompt_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -572,6 +606,7 @@ func _build_prompt() -> void:
 	row.add_child(_prompt_text)
 
 
+## The subtitle box: speaker, log counter and text.
 func _build_subtitles() -> void:
 	_sub_box = PanelContainer.new()
 	_sub_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -609,6 +644,7 @@ func _build_subtitles() -> void:
 	v.add_child(_sub_text)
 
 
+## Applies the subtitle size setting.
 func _apply_sub_size() -> void:
 	var idx := clampi(int(Settings.subtitle_size), 0, SUB_SIZES.size() - 1)
 	var s: int = SUB_SIZES[idx]
@@ -622,6 +658,7 @@ func _apply_sub_size() -> void:
 
 # ---------------------------------------------------------------- Public API (director, main, cutscenes)
 
+## How close danger is (0..1): drives the vignette and screen effects.
 func set_dread(v: float) -> void:
 	_dread = clampf(v, 0.0, 1.0)
 	(_vignette.material as ShaderMaterial).set_shader_parameter("dread", _dread)
@@ -646,6 +683,7 @@ func show_title() -> void:
 		_boot.call("start")
 
 
+## Hides the title menu and everything opened from it.
 func hide_title(_instant: bool = false) -> void:
 	_title_menu.call("deactivate")
 	_settings.visible = false
@@ -654,12 +692,14 @@ func hide_title(_instant: bool = false) -> void:
 	_mouse_hidden = false
 
 
+## Sets the black cover instantly.
 func set_black(alpha: float) -> void:
 	if _black_tween != null:
 		_black_tween.kill()
 	_black.color.a = alpha
 
 
+## Fades to black and waits until done.
 func fade_to_black(seconds: float) -> void:
 	if _black_tween != null:
 		_black_tween.kill()
@@ -668,6 +708,7 @@ func fade_to_black(seconds: float) -> void:
 	await _black_tween.finished
 
 
+## Fades the black cover away.
 func fade_from_black(seconds: float) -> void:
 	if _black_tween != null:
 		_black_tween.kill()
@@ -713,7 +754,7 @@ func caught_out() -> void:
 	_black_tween = create_tween()
 	_black_tween.tween_property(_black, "color:a", 1.0, 0.55)
 	await _black_tween.finished
-	_tip.text = FIRST_TIP if Game.times_caught <= 1 else str(TIPS[(Game.times_caught - 2) % TIPS.size()])
+	_tip.text = _pick_tip()
 	_tip.modulate.a = 0.0
 	_center.add_theme_color_override("font_color", Color(1.0, 0.82, 0.84))
 	_center.modulate.a = 1.0
@@ -724,20 +765,36 @@ func caught_out() -> void:
 	await get_tree().create_timer(2.0).timeout
 
 
+## The tip shown after being caught: the first tip the first time, then the
+## rest in order, looping.
+func _pick_tip() -> String:
+	if Game.times_caught <= 1:
+		return FIRST_TIP
+	var index: int = (Game.times_caught - 2) % TIPS.size()
+	return str(TIPS[index])
+
+
+## Caught, part 2: fades the black and the text away together.
 func caught_in() -> void:
 	if _black_tween != null:
 		_black_tween.kill()
-	_black_tween = create_tween().set_parallel(true)
+	_black_tween = create_tween()
+	# These three fades run at the same time.
+	_black_tween.set_parallel(true)
 	_black_tween.tween_property(_black, "color:a", 0.0, 1.0)
 	_black_tween.tween_property(_center, "modulate:a", 0.0, 0.5)
 	_black_tween.tween_property(_tip, "modulate:a", 0.0, 0.5)
-	_black_tween.chain().tween_callback(_end_caught)
+	# Then, once all of them are done, mark the catch as over.
+	_black_tween.chain()
+	_black_tween.tween_callback(_end_caught)
 
 
+## The catch sequence is over.
 func _end_caught() -> void:
 	_caught_busy = false
 
 
+## Shows the end-of-run screen.
 func show_end_screen(can_go_deeper: bool = false) -> void:
 	_prompt_box.visible = false
 	_sub_box.visible = false
@@ -753,53 +810,17 @@ func show_speaker_line(speaker: String, text: String) -> void:
 
 # ---------------------------------------------------------------- Frame update
 
+## Runs every frame (even while paused) and updates every part of the UI.
 func _process(delta: float) -> void:
 	_time += delta
 	var cut := _cutscene_playing()
 	var playing := Game.state == Game.State.PLAYING and not cut
-	var map_open: bool = _map != null and _map.get("is_open") == true
-
-	# Pause whenever the mouse is unlocked while playing. In a browser, Esc
-	# unlocks the mouse without the game ever seeing the key press. The map
-	# pauses the tree itself while open, so leave it alone then.
-	var should_pause := Game.state == Game.State.PLAYING and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not map_open
-	if not map_open and get_tree().paused != should_pause:
-		get_tree().paused = should_pause
-	if should_pause != _pause_shown:
-		_set_pause(should_pause)
+	_update_auto_pause()
 	var live := playing and not get_tree().paused
-
-	# Catch fade: darkens quickly, then lifts.
-	if _flash_in > 0.0:
-		_flash_in -= delta
-		_flash_alpha = move_toward(_flash_alpha, 0.8, delta * 5.0)
-	else:
-		_flash_alpha = maxf(_flash_alpha - delta * 0.9, 0.0)
-	_flash.color.a = _flash_alpha
-
-	# Chromatic aberration at high dread + the ripple of your own ping.
-	if _ripple >= 0.0:
-		_ripple += delta / 0.9
-		if _ripple > 1.0:
-			_ripple = -1.0
-	var chroma := smoothstep(0.45, 1.0, _dread) * 0.006
-	_fx.visible = _ripple >= 0.0 or chroma > 0.0003
-	if _fx.visible:
-		var fm := _fx.material as ShaderMaterial
-		fm.set_shader_parameter("chroma", chroma)
-		fm.set_shader_parameter("ripple", _ripple)
-		fm.set_shader_parameter("ripple_strength", _ripple_strength)
-		fm.set_shader_parameter("aspect", root.size.x / maxf(root.size.y, 1.0))
-
-	# HUD: fades after a few seconds without input, back on any input.
+	_update_catch_fade(delta)
+	_update_screen_fx(delta)
 	_hud.visible = playing
-	if live:
-		_idle += delta
-	var ping_cool: float = _pget("ping_cooldown", 0.0)
-	var whisper_cool: float = _pget("whisper_cooldown", 0.0)
-	var cooling: bool = ping_cool > 0.0 or whisper_cool > 0.0
-	var hud_target := 1.0 if (_idle < HUD_IDLE or cooling) else 0.0
-	_hud_alpha = move_toward(_hud_alpha, hud_target, delta * (3.0 if hud_target > _hud_alpha else 0.8))
+	_update_hud_fade(delta, live)
 	_update_hud_anim(delta)
 	_update_combat(delta)
 	_hud.modulate.a = clampf(float(Settings.hud_opacity), 0.05, 1.0)
@@ -821,6 +842,68 @@ func _process(delta: float) -> void:
 	_update_extras(delta, live)
 
 
+## Pause whenever the mouse is unlocked while playing. In a browser, Esc
+## unlocks the mouse without the game ever seeing the key press. The map
+## pauses the tree itself while open, so leave it alone then.
+func _update_auto_pause() -> void:
+	var map_open: bool = _map != null and _map.get("is_open") == true
+	var should_pause := false
+	if Game.state == Game.State.PLAYING:
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not map_open:
+			should_pause = true
+	if not map_open and get_tree().paused != should_pause:
+		get_tree().paused = should_pause
+	if should_pause != _pause_shown:
+		_set_pause(should_pause)
+
+
+## Catch fade: darkens quickly, then lifts.
+func _update_catch_fade(delta: float) -> void:
+	if _flash_in > 0.0:
+		_flash_in -= delta
+		_flash_alpha = move_toward(_flash_alpha, 0.8, delta * 5.0)
+	else:
+		_flash_alpha = maxf(_flash_alpha - delta * 0.9, 0.0)
+	_flash.color.a = _flash_alpha
+
+
+## Chromatic aberration at high dread + the ripple of your own ping.
+func _update_screen_fx(delta: float) -> void:
+	if _ripple >= 0.0:
+		_ripple += delta / 0.9
+		if _ripple > 1.0:
+			_ripple = -1.0
+	var chroma := smoothstep(0.45, 1.0, _dread) * 0.006
+	_fx.visible = _ripple >= 0.0 or chroma > 0.0003
+	if not _fx.visible:
+		return
+	var fm := _fx.material as ShaderMaterial
+	fm.set_shader_parameter("chroma", chroma)
+	fm.set_shader_parameter("ripple", _ripple)
+	fm.set_shader_parameter("ripple_strength", _ripple_strength)
+	var aspect := root.size.x / maxf(root.size.y, 1.0)
+	fm.set_shader_parameter("aspect", aspect)
+
+
+## HUD: fades after a few seconds without input, back on any input
+## (and stays up while a cooldown is running).
+func _update_hud_fade(delta: float, live: bool) -> void:
+	if live:
+		_idle += delta
+	var ping_cool: float = _pget("ping_cooldown", 0.0)
+	var whisper_cool: float = _pget("whisper_cooldown", 0.0)
+	var cooling: bool = ping_cool > 0.0 or whisper_cool > 0.0
+	var hud_target := 0.0
+	if _idle < HUD_IDLE or cooling:
+		hud_target = 1.0
+	# Fade in fast, fade out slowly.
+	var speed := 0.8
+	if hud_target > _hud_alpha:
+		speed = 3.0
+	_hud_alpha = move_toward(_hud_alpha, hud_target, delta * speed)
+
+
+## True while main.gd's cutscene node is playing one.
 func _cutscene_playing() -> bool:
 	if _main == null:
 		return false
@@ -830,18 +913,29 @@ func _cutscene_playing() -> bool:
 	return cs.get("playing") == true
 
 
+## Reads a property from the player, or `fallback` if there is no player
+## or the property doesn't exist.
 func _pget(prop: String, fallback: Variant) -> Variant:
 	if _player == null or not is_instance_valid(_player):
 		return fallback
 	var v: Variant = _player.get(prop)
-	return fallback if v == null else v
+	if v == null:
+		return fallback
+	return v
 
 
+## Timers for the HUD animations (crosshair spread, ready flash, pebble pulses).
 func _update_hud_anim(delta: float) -> void:
 	var running: bool = _pget("is_running", false)
 	var sneaking: bool = _pget("is_sneaking", false)
-	var target := 1.0 if running else (-1.0 if sneaking else 0.0)
-	_spread = lerpf(_spread, target, 1.0 - exp(-10.0 * delta))
+	# Crosshair spread: +1 running, -1 sneaking, 0 walking.
+	var target := 0.0
+	if running:
+		target = 1.0
+	elif sneaking:
+		target = -1.0
+	var follow := 1.0 - exp(-10.0 * delta)
+	_spread = lerpf(_spread, target, follow)
 	var cool: float = _pget("ping_cooldown", 0.0)
 	if _last_cooldown > 0.0 and cool <= 0.0:
 		_ready_flash = 1.0
@@ -856,23 +950,50 @@ func _update_hud_anim(delta: float) -> void:
 	_empty_shake = maxf(_empty_shake - delta, 0.0)
 
 
+## Draws the whole HUD. The crosshair group scales around the screen centre,
+## the health / pebble group around the bottom-left corner.
 func _draw_hud() -> void:
 	var size := _hud.size
 	var c := size * 0.5
 	var a := _hud_alpha
+	# The crosshair never fades below 40%.
 	var cross_a := maxf(a, 0.4)
-	var cyan := Style.CYAN
 	var hs := clampf(float(Settings.hud_scale), 0.5, 2.0)
-	# Crosshair group scales around the screen centre.
+
+	# Crosshair group.
 	_hud.draw_set_transform(c * (1.0 - hs), 0.0, Vector2(hs, hs))
+	_draw_noise_ring(c, cross_a)
+	_draw_crosshair(c, cross_a)
+	_draw_ping_cooldown(c, cross_a)
+	_draw_whisper_cooldown(c, cross_a)
+	_draw_stamina(c, cross_a)
+	_draw_attack_ring(c, cross_a)
 
-	# Noise ring while running: how far your footsteps carry.
+	# Bottom-left group.
+	_hud.draw_set_transform(Vector2(0.0, size.y) * (1.0 - hs), 0.0, Vector2(hs, hs))
+	# Health stays at least half visible right after a hit or while hurt.
+	var health_a := a
+	if _hp_hit > 0.0 or _hp < _hp_max:
+		health_a = maxf(a, 0.55)
+	_draw_health(Vector2(38.0, size.y - 80.0), health_a)
+	_draw_pebbles_and_upgrades(size, a)
+
+	_hud.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_draw_damage_numbers()
+
+
+## Noise ring while running: how far your footsteps carry.
+func _draw_noise_ring(c: Vector2, cross_a: float) -> void:
 	var noise: float = _pget("noise_radius", 0.0)
-	if _pget("is_running", false) and noise > 0.0:
-		var nr := 26.0 + noise * 5.0
-		_hud.draw_arc(c, nr, 0.0, TAU, 64, Color(1.0, 0.4, 0.4, (0.09 + 0.04 * sin(_time * 9.0)) * cross_a), 1.5, true)
+	if not _pget("is_running", false) or noise <= 0.0:
+		return
+	var nr := 26.0 + noise * 5.0
+	var alpha := (0.09 + 0.04 * sin(_time * 9.0)) * cross_a
+	_hud.draw_arc(c, nr, 0.0, TAU, 64, Color(1.0, 0.4, 0.4, alpha), 1.5, true)
 
-	# Crosshair dot: smaller and dimmer sneaking, ticks spread out running.
+
+## Crosshair dot: smaller and dimmer sneaking, ticks spread out running.
+func _draw_crosshair(c: Vector2, cross_a: float) -> void:
 	var sneak_t := maxf(-_spread, 0.0)
 	var run_t := maxf(_spread, 0.0)
 	var dot_r := 2.2 - sneak_t * 0.8
@@ -893,41 +1014,59 @@ func _draw_hud() -> void:
 			var dir := Vector2.from_angle(PI * 0.25 + i * PI * 0.5)
 			_hud.draw_line(c + dir * r0, c + dir * (r0 + 5.0), Color(1.0, 1.0, 1.0, 0.6 * run_t * cross_a), 1.5, true)
 
-	# Ping cooldown ring, and a soft "ready" pulse when it comes back.
+
+## Ping cooldown ring, and a soft "ready" pulse when it comes back.
+func _draw_ping_cooldown(c: Vector2, cross_a: float) -> void:
+	var cyan := Style.CYAN
 	var cool: float = _pget("ping_cooldown", 0.0)
 	if cool > 0.001:
-		var frac := clampf(cool / maxf(Game.ping_cooldown, 0.05), 0.0, 1.0)
+		var full_time := maxf(Game.ping_cooldown, 0.05)
+		var frac := clampf(cool / full_time, 0.0, 1.0)
+		# Faint full ring behind.
 		_hud.draw_arc(c, 16.0, 0.0, TAU, 48, Color(cyan.r, cyan.g, cyan.b, 0.12 * cross_a), 2.0, true)
+		# Bright part: the time still left, starting at the top.
 		var start := -PI * 0.5
 		var end_angle := start + TAU * frac
 		_hud.draw_arc(c, 16.0, start, end_angle, 48, Color(cyan.r, cyan.g, cyan.b, 0.85 * cross_a), 2.5, true)
-		_hud.draw_circle(c + Vector2.from_angle(end_angle) * 16.0, 2.0, Color(1.0, 1.0, 1.0, 0.9 * cross_a))
+		var tip_pos := c + Vector2.from_angle(end_angle) * 16.0
+		_hud.draw_circle(tip_pos, 2.0, Color(1.0, 1.0, 1.0, 0.9 * cross_a))
 	if _ready_flash > 0.0:
 		var t := 1.0 - _ready_flash
-		_hud.draw_arc(c, 16.0 + t * 10.0, 0.0, TAU, 48, Color(cyan.r, cyan.g, cyan.b, 0.6 * _ready_flash * cross_a), 2.0, true)
+		var ready_a := 0.6 * _ready_flash * cross_a
+		_hud.draw_arc(c, 16.0 + t * 10.0, 0.0, TAU, 48, Color(cyan.r, cyan.g, cyan.b, ready_a), 2.0, true)
 
-	# Whisper cooldown: thinner inner ring.
+
+## Whisper cooldown: thinner inner ring.
+func _draw_whisper_cooldown(c: Vector2, cross_a: float) -> void:
 	var whisper: float = _pget("whisper_cooldown", 0.0)
-	if whisper > 0.001:
-		var wf := clampf(whisper / maxf(_whisper_max, 0.1), 0.0, 1.0)
-		_hud.draw_arc(c, 9.5, -PI * 0.5, -PI * 0.5 + TAU * wf, 32, Color(0.8, 0.95, 1.0, 0.55 * cross_a), 1.5, true)
+	if whisper <= 0.001:
+		return
+	var wf := clampf(whisper / maxf(_whisper_max, 0.1), 0.0, 1.0)
+	var start := -PI * 0.5
+	var end_angle := start + TAU * wf
+	_hud.draw_arc(c, 9.5, start, end_angle, 32, Color(0.8, 0.95, 1.0, 0.55 * cross_a), 1.5, true)
 
-	# Stamina: a thin bar under the crosshair while it drains or refills.
+
+## Stamina: a thin bar under the crosshair while it drains or refills.
+func _draw_stamina(c: Vector2, cross_a: float) -> void:
 	var stamina: float = _pget("stamina", 1.0)
-	if stamina < 0.995:
-		var winded: bool = _pget("is_winded", false)
-		var bar := Rect2(c + Vector2(-24.0, 26.0), Vector2(48.0, 3.0))
-		var bar_col := Color(1.0, 0.3, 0.32, 0.85) if winded else Color(0.85, 0.95, 1.0, 0.6)
-		_hud.draw_rect(bar, Color(0.0, 0.0, 0.0, 0.45 * cross_a))
-		_hud.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(stamina, 0.0, 1.0), bar.size.y)), Color(bar_col.r, bar_col.g, bar_col.b, bar_col.a * cross_a))
+	if stamina >= 0.995:
+		return
+	var winded: bool = _pget("is_winded", false)
+	var bar := Rect2(c + Vector2(-24.0, 26.0), Vector2(48.0, 3.0))
+	# Red when out of breath, pale blue otherwise.
+	var bar_col := Color(0.85, 0.95, 1.0, 0.6)
+	if winded:
+		bar_col = Color(1.0, 0.3, 0.32, 0.85)
+	_hud.draw_rect(bar, Color(0.0, 0.0, 0.0, 0.45 * cross_a))
+	var fill_width := bar.size.x * clampf(stamina, 0.0, 1.0)
+	var fill := Rect2(bar.position, Vector2(fill_width, bar.size.y))
+	_hud.draw_rect(fill, Color(bar_col.r, bar_col.g, bar_col.b, bar_col.a * cross_a))
 
-	_draw_attack_ring(c, cross_a)
 
-	# Bottom-left group scales around the bottom-left corner.
-	_hud.draw_set_transform(Vector2(0.0, size.y) * (1.0 - hs), 0.0, Vector2(hs, hs))
-	_draw_health(Vector2(38.0, size.y - 80.0), maxf(a, 0.55 if _hp_hit > 0.0 or _hp < _hp_max else a))
-
-	# Pebbles: gold dots, faint empty slots, pulse on pickup, drop on throw.
+## Pebbles (gold dots, faint empty slots, pulse on pickup, drop on throw),
+## then the echo crystal upgrade icons after them.
+func _draw_pebbles_and_upgrades(size: Vector2, a: float) -> void:
 	var base := Vector2(44.0, size.y - 46.0)
 	if _empty_shake > 0.0:
 		base += Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * 4.0 * _empty_shake
@@ -942,9 +1081,11 @@ func _draw_hud() -> void:
 		else:
 			_hud.draw_arc(p, 6.0, 0.0, TAU, 24, Color(gold.r, gold.g, gold.b, 0.22 * a), 1.2, true)
 			if _slot_drop[i] > 0.0:
+				# A thrown pebble shrinks and floats up out of its slot.
 				var d := _slot_drop[i]
 				var jitter := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * 2.5 * d
-				_hud.draw_circle(p + jitter + Vector2(0.0, -(1.0 - d) * 12.0), 6.0 * d, Color(gold.r, gold.g, gold.b, d))
+				var rise := Vector2(0.0, -(1.0 - d) * 12.0)
+				_hud.draw_circle(p + jitter + rise, 6.0 * d, Color(gold.r, gold.g, gold.b, d))
 	if Game.pebbles == 0 and _empty_shake > 0.0:
 		_hud.draw_string(ThemeDB.fallback_font, base + Vector2(-6.0, -18.0), "OUT OF PEBBLES", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.5, 0.45, _empty_shake))
 
@@ -953,10 +1094,9 @@ func _draw_hud() -> void:
 	for u in Game.upgrades:
 		_draw_upgrade(Vector2(x, base.y), int(u), a)
 		x += 24.0
-	_hud.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	_draw_damage_numbers()
 
 
+## One small echo crystal upgrade icon.
 func _draw_upgrade(p: Vector2, kind: int, a: float) -> void:
 	var col := Color(CRYSTAL.r, CRYSTAL.g, CRYSTAL.b, 0.9 * a)
 	match kind:
@@ -979,6 +1119,7 @@ func _draw_upgrade(p: Vector2, kind: int, a: float) -> void:
 
 # ---------------------------------------------------------------- Prompts
 
+## Queues a control prompt (each one shows only once, except "interact").
 func _on_prompt(id: String) -> void:
 	if not PROMPTS.has(id):
 		return
@@ -1006,21 +1147,35 @@ func _on_prompt(id: String) -> void:
 	_prompt_queue.append(id)
 
 
+## Shows one prompt now.
 func _show_prompt(id: String) -> void:
 	_prompt_id = id
 	_prompt_age = 0.0
 	_prompts_seen[id] = true
 	var action: String = PROMPTS[id][0]
 	var text: String = PROMPTS[id][1]
+	# Sneak and run text depends on whether they are toggles or holds.
 	if id == "sneak":
-		text = ("Press to sneak" if Settings.toggle_sneak else "Hold to sneak") + ": your footsteps go silent."
+		if Settings.toggle_sneak:
+			text = "Press to sneak: your footsteps go silent."
+		else:
+			text = "Hold to sneak: your footsteps go silent."
 	elif id == "run":
-		text = ("Press to run" if Settings.toggle_run else "Hold to run") + ": fast, but loud."
-	var key := Style.key_name(action) if action != "" else ""
+		if Settings.toggle_run:
+			text = "Press to run: fast, but loud."
+		else:
+			text = "Hold to run: fast, but loud."
+	var key := ""
+	if action != "":
+		key = Style.key_name(action)
 	_prompt_key.text = key
 	_prompt_key.visible = key != ""
 	_prompt_text.text = text
-	_prompt_text.add_theme_color_override("font_color", Color(1.0, 0.6, 0.55) if id == "pebbles_empty" else Color(0.92, 0.95, 0.97))
+	# "Out of pebbles" is shown in red, everything else in white.
+	var text_color := Color(0.92, 0.95, 0.97)
+	if id == "pebbles_empty":
+		text_color = Color(1.0, 0.6, 0.55)
+	_prompt_text.add_theme_color_override("font_color", text_color)
 	_prompt_box.reset_size()
 	if _prompt_tween != null:
 		_prompt_tween.kill()
@@ -1029,6 +1184,7 @@ func _show_prompt(id: String) -> void:
 	_prompt_tween.tween_property(_prompt_box, "modulate:a", 1.0, 0.3)
 
 
+## Fades the prompt out and waits a moment before the next one.
 func _hide_prompt() -> void:
 	_prompt_id = ""
 	_prompt_gap = 0.7
@@ -1038,6 +1194,7 @@ func _hide_prompt() -> void:
 	_prompt_tween.tween_property(_prompt_box, "modulate:a", 0.0, 0.4)
 
 
+## Hides the prompt when its action is used or it times out; shows the next.
 func _update_prompt(delta: float, live: bool) -> void:
 	_prompt_box.visible = live and (_prompt_id != "" or _prompt_box.modulate.a > 0.01)
 	# Keep it centred as its text changes width.
@@ -1064,13 +1221,18 @@ func _update_prompt(delta: float, live: bool) -> void:
 
 # ---------------------------------------------------------------- Subtitles / voice logs / zone
 
+## A plain subtitle line.
 func _on_subtitle(text: String) -> void:
 	_show_line("", text, "")
 
 
+## One of Mara's logs: speaker tag, log counter and (if enabled) text.
 func _on_voice_log(index: int, text: String) -> void:
 	Game.log_texts[index] = text
-	var found := Game.logs_found.size() + (0 if Game.logs_found.has(index) else 1)
+	# Count this log as found even if Game hasn't added it to the list yet.
+	var found := Game.logs_found.size()
+	if not Game.logs_found.has(index):
+		found += 1
 	var counter := "LOG %d / %d" % [found, _count_logs()]
 	if Settings.subtitles:
 		_show_line("MARA  —", text, counter)
@@ -1078,6 +1240,7 @@ func _on_voice_log(index: int, text: String) -> void:
 		_show_line("MARA  —", "", counter)
 
 
+## Shows a subtitle line and starts typing it.
 func _show_line(speaker: String, text: String, counter: String) -> void:
 	_sub_speaker.text = speaker
 	_sub_speaker.visible = speaker != "" or counter != ""
@@ -1087,7 +1250,11 @@ func _show_line(speaker: String, text: String, counter: String) -> void:
 	_sub_text.visible_characters = 0
 	_sub_chars = 0.0
 	_sub_hold = 2.6 + text.length() * 0.055
-	_sub_phase = 1 if text != "" else 2
+	# With text: start typing it (1). Without: just hold the header (2).
+	if text != "":
+		_sub_phase = 1
+	else:
+		_sub_phase = 2
 	if _sub_tween != null:
 		_sub_tween.kill()
 	_sub_box.visible = true
@@ -1097,6 +1264,7 @@ func _show_line(speaker: String, text: String, counter: String) -> void:
 	_sub_tween.tween_property(_sub_box, "modulate:a", 1.0, 0.2)
 
 
+## Subtitle phases: typing (1) -> holding (2) -> fading (3) -> hidden (0).
 func _update_subtitle(delta: float) -> void:
 	match _sub_phase:
 		1:
@@ -1117,12 +1285,14 @@ func _update_subtitle(delta: float) -> void:
 				_sub_tween.tween_callback(_sub_hidden)
 
 
+## Called when the subtitle fade-out finishes.
 func _sub_hidden() -> void:
 	if _sub_phase == 3:
 		_sub_phase = 0
 		_sub_box.visible = false
 
 
+## Shows the zone name for a few seconds.
 func _on_zone(zone_name: String) -> void:
 	if zone_name == "":
 		return
@@ -1138,6 +1308,7 @@ func _on_zone(zone_name: String) -> void:
 
 # ---------------------------------------------------------------- Game events
 
+## Pulses new pebble slots, or drops thrown ones.
 func _on_pebbles_changed(count: int) -> void:
 	if count > _last_pebbles:
 		for i in range(_last_pebbles, mini(count, _slot_pulse.size())):
@@ -1149,16 +1320,19 @@ func _on_pebbles_changed(count: int) -> void:
 	_idle = 0.0
 
 
+## Any stat change briefly wakes the HUD.
 func _on_stat(_stat_name: String, _value: int) -> void:
 	_idle = minf(_idle, HUD_IDLE - 1.5)
 
 
+## Gold glow at the screen edges.
 func _on_checkpoint() -> void:
 	# A warm glow at the screen edges instead of a "Checkpoint" message.
 	_pulse_edge(Style.GOLD, 1.0, 1.9)
 	_idle = 0.0
 
 
+## Shows "You fell." over a dip to black.
 func _on_fell() -> void:
 	if _caught_busy:
 		return
@@ -1174,15 +1348,20 @@ func _on_fell() -> void:
 	_center_tween.tween_property(_center, "modulate:a", 0.0, 0.6)
 
 
+## Starts the screen ripple when the player pings.
 func _on_ping(origin: Vector3, _radius: float, loud: bool) -> void:
 	if _player == null or Game.state != Game.State.PLAYING:
 		return
 	if origin.distance_to(_player.global_position + Vector3.UP * 0.8) < 2.5:
 		_ripple = 0.0
-		_ripple_strength = 1.0 if loud else 0.45
+		if loud:
+			_ripple_strength = 1.0
+		else:
+			_ripple_strength = 0.45
 		_idle = 0.0
 
 
+## Glows the screen edges in `color` up to `peak`, then fades.
 func _pulse_edge(color: Color, peak: float, seconds: float) -> void:
 	var m := _edge.material as ShaderMaterial
 	m.set_shader_parameter("tint", color)
@@ -1193,29 +1372,72 @@ func _pulse_edge(color: Color, peak: float, seconds: float) -> void:
 	_edge_tween.tween_method(_set_edge, peak, 0.0, seconds * 0.75).set_trans(Tween.TRANS_SINE)
 
 
+## Tween helper: sets the edge glow amount.
 func _set_edge(v: float) -> void:
 	(_edge.material as ShaderMaterial).set_shader_parameter("amount", v)
 
 
 # ---------------------------------------------------------------- Menus
 
+## Calls a function on main.gd by name, if it exists.
 func _call_main(method: String) -> void:
 	if _main != null and _main.has_method(method):
 		_main.call(method)
 
 
+# Menu button handlers: each just forwards to main.gd or opens a menu.
+
+func _on_title_begin() -> void:
+	_call_main("begin_new_run")
+
+
+func _on_title_continue() -> void:
+	_call_main("continue_run")
+
+
+func _on_title_settings() -> void:
+	_open_settings("title")
+
+
+func _on_title_quit() -> void:
+	_call_main("quit_game")
+
+
+func _on_end_play_again() -> void:
+	_call_main("play_again")
+
+
+func _on_end_deeper() -> void:
+	_call_main("go_deeper")
+
+
+func _on_quit_to_title() -> void:
+	_call_main("quit_to_title")
+
+
+func _on_pause_restart() -> void:
+	_call_main("restart_from_checkpoint")
+
+
+func _on_pause_settings() -> void:
+	_open_settings("pause")
+
+
+## Boot cards are done: show the main menu.
 func _on_boot_finished() -> void:
 	Game.booted = true
 	_title_menu.call("activate")
 	_hide_mouse_until_moved()
 
 
+## Hides the mouse on the title screen until it moves.
 func _hide_mouse_until_moved() -> void:
 	if Game.state == Game.State.TITLE and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 		_mouse_hidden = true
 
 
+## Opens the settings menu from the title or pause menu.
 func _open_settings(from: String) -> void:
 	_settings_from = from
 	if from == "title":
@@ -1223,6 +1445,7 @@ func _open_settings(from: String) -> void:
 	_settings.call("open")
 
 
+## Goes back to whichever menu opened settings.
 func _on_settings_closed() -> void:
 	if _settings_from == "title" and Game.state == Game.State.TITLE:
 		_title_menu.visible = true
@@ -1233,17 +1456,20 @@ func _on_settings_closed() -> void:
 	_settings_from = ""
 
 
+## Opens the credits from the title menu.
 func _open_credits() -> void:
 	_title_menu.visible = false
 	_credits.call("open")
 
 
+## Back to the title menu.
 func _on_credits_closed() -> void:
 	if Game.state == Game.State.TITLE:
 		_title_menu.visible = true
 		_title_menu.call("focus_first")
 
 
+## Opens or closes the pause menu (and muffles audio).
 func _set_pause(on: bool) -> void:
 	_pause_shown = on
 	Sfx.set_muffled(on)
@@ -1256,10 +1482,12 @@ func _set_pause(on: bool) -> void:
 			_settings.call("close")
 
 
+## Re-locks the mouse, which unpauses the game.
 func _resume() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Counts pickups of a given kind in the current scene.
 func _count_kind(kind: int) -> int:
 	var scene := get_tree().current_scene
 	if scene == null:
@@ -1271,17 +1499,29 @@ func _count_kind(kind: int) -> int:
 	return n
 
 
+## Total number of voice logs in the level (counted once). Falls back to 8.
 func _count_logs() -> int:
 	if _total_logs < 0:
 		_total_logs = _count_kind(2)
-	return _total_logs if _total_logs > 0 else 8
+	if _total_logs > 0:
+		return _total_logs
+	return 8
 
 
 # ---------------------------------------------------------------- Input
 
+## Remembers the last input device, wakes the HUD, tracks which actions
+## were used, and lets any key skip the opening lines.
 func _input(event: InputEvent) -> void:
 	# Last device used (prompts show keys or pad buttons), and HUD wake-up.
-	if event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.5):
+	var is_pad := false
+	if event is InputEventJoypadButton:
+		is_pad = true
+	elif event is InputEventJoypadMotion:
+		var stick := event as InputEventJoypadMotion
+		if absf(stick.axis_value) > 0.5:
+			is_pad = true
+	if is_pad:
 		Style.using_pad = true
 		_idle = 0.0
 	elif event is InputEventKey or event is InputEventMouseButton:
@@ -1303,14 +1543,19 @@ func _input(event: InputEvent) -> void:
 
 	# Any key / click / button skips the typed opening lines.
 	if _opening.modulate.a > 0.0 and _opening.text != "":
-		var pressed := (event is InputEventKey and event.is_pressed() and not event.is_echo()) \
-				or (event is InputEventMouseButton and event.is_pressed()) \
-				or (event is InputEventJoypadButton and event.is_pressed())
+		var pressed := false
+		if event is InputEventKey and event.is_pressed() and not event.is_echo():
+			pressed = true
+		elif event is InputEventMouseButton and event.is_pressed():
+			pressed = true
+		elif event is InputEventJoypadButton and event.is_pressed():
+			pressed = true
 		if pressed:
 			_opening_skip = true
 			get_viewport().set_input_as_handled()
 
 
+## While paused: a click resumes; Esc goes back a menu or resumes.
 func _unhandled_input(event: InputEvent) -> void:
 	if not _pause_shown or _settings.visible:
 		return
@@ -1325,6 +1570,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_resume()
 
 
+## Alt-tab / clicking away pauses (the mouse is released first).
 func _notification(what: int) -> void:
 	# Alt-tab / clicking away pauses (the mouse is released first).
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and Game.state == Game.State.PLAYING:
@@ -1333,6 +1579,7 @@ func _notification(what: int) -> void:
 
 # ---------------------------------------------------------------- Helpers
 
+## Types `text` into `label` letter by letter (skippable).
 func _type_into(label: Label, text: String, chars_per_second: float) -> void:
 	label.text = text
 	label.visible_characters = 0
@@ -1344,6 +1591,7 @@ func _type_into(label: Label, text: String, chars_per_second: float) -> void:
 	label.visible_characters = -1
 
 
+## Waits `seconds`, or less if the player skips.
 func _wait_or_skip(seconds: float) -> void:
 	var t := 0.0
 	while t < seconds and not _opening_skip:
@@ -1355,6 +1603,7 @@ func _wait_or_skip(seconds: float) -> void:
 # Everything here reads Game / player defensively: the combat fields and
 # signals may not exist in every build.
 
+## Connects to the combat signals that exist in this build.
 func _connect_combat() -> void:
 	if Game.has_signal("health_changed"):
 		Game.connect("health_changed", _on_health_changed)
@@ -1367,6 +1616,7 @@ func _connect_combat() -> void:
 	_read_health()
 
 
+## Reads the player health from Game.
 func _read_health() -> void:
 	if "player_health" in Game:
 		_hp = float(Game.get("player_health"))
@@ -1376,10 +1626,12 @@ func _read_health() -> void:
 		_hp_lag = _hp
 
 
+## True when damage is on and health is known.
 func _combat_on() -> bool:
 	return Settings.damage_enabled and _hp >= 0.0
 
 
+## New health value: flash the bar on a loss.
 func _on_health_changed(hp: Variant = null, max_hp: Variant = null) -> void:
 	var old := _hp
 	if hp != null:
@@ -1393,6 +1645,7 @@ func _on_health_changed(hp: Variant = null, max_hp: Variant = null) -> void:
 	_idle = 0.0
 
 
+## Player got hit: flash the bar and the red screen edge.
 func _on_player_damaged(_amount: Variant = null, _from: Variant = null) -> void:
 	_hp_hit = 1.0
 	_idle = 0.0
@@ -1404,32 +1657,44 @@ func _on_player_damaged(_amount: Variant = null, _from: Variant = null) -> void:
 		_pulse_edge(Color(0.25, 0.0, 0.0), 0.5, 1.4)
 
 
+## A Listener got hit: show a floating damage number.
 func _on_listener_damaged(a: Variant = null, b: Variant = null, c: Variant = null) -> void:
 	if not Settings.damage_numbers or not Settings.damage_enabled:
 		return
+	# The signal's arguments can come in any order: look for a position
+	# (a Vector3 or a Node3D) and an amount (a number).
 	var amount := -1.0
 	var pos: Variant = null
 	for v in [a, b, c]:
 		if v is Vector3 and pos == null:
 			pos = v
 		elif v is Node3D and pos == null and is_instance_valid(v):
-			pos = (v as Node3D).global_position + Vector3(0.0, 1.6, 0.0)
+			var node: Node3D = v
+			pos = node.global_position + Vector3(0.0, 1.6, 0.0)
 		elif (v is float or v is int) and amount < 0.0:
 			amount = float(v)
 	if pos == null or amount < 0.0:
 		return
-	var text := str(roundi(amount)) if absf(amount - roundf(amount)) < 0.05 else "%.1f" % amount
+	# Whole numbers show as "5", others as "2.5".
+	var text := "%.1f" % amount
+	if absf(amount - roundf(amount)) < 0.05:
+		text = str(roundi(amount))
 	_dmg_numbers.append({"pos": pos, "text": text, "age": 0.0, "dx": randf_range(-12.0, 12.0)})
 	if _dmg_numbers.size() > 12:
 		_dmg_numbers.pop_front()
 
 
+## Health bar animation, strike cooldown and damage number ageing.
 func _update_combat(delta: float) -> void:
 	if _hp < 0.0 or not Game.has_signal("health_changed"):
 		_read_health()
 	_hp_hit = maxf(_hp_hit - delta * 2.0, 0.0)
 	if _hp_lag > _hp:
-		_hp_lag = move_toward(_hp_lag, _hp, delta * _hp_max * (0.15 if _hp_hit > 0.3 else 0.6))
+		# The "lost health" segment waits a moment after a hit, then drains.
+		var drain_speed := 0.6
+		if _hp_hit > 0.3:
+			drain_speed = 0.15
+		_hp_lag = move_toward(_hp_lag, _hp, delta * _hp_max * drain_speed)
 	else:
 		_hp_lag = _hp
 	var cool: float = float(_pget("attack_cooldown", 0.0))
@@ -1441,6 +1706,7 @@ func _update_combat(delta: float) -> void:
 			_dmg_numbers.remove_at(i)
 
 
+## Health bar with a trailing "lost health" segment.
 func _draw_health(p: Vector2, a: float) -> void:
 	if not _combat_on():
 		return
@@ -1449,8 +1715,13 @@ func _draw_health(p: Vector2, a: float) -> void:
 	var frac := clampf(_hp / _hp_max, 0.0, 1.0)
 	var lag := clampf(_hp_lag / _hp_max, 0.0, 1.0)
 	var low := frac <= 0.3
-	var pulse := 0.75 + 0.25 * sin(_time * 6.0) if low and not Settings.no_flash else 1.0
-	var col := Color(0.86, 0.16, 0.14) if low else Color(0.78, 0.2, 0.18).lerp(Color(0.9, 0.85, 0.8), 0.25)
+	# Low health: brighter red that pulses (no pulse with flashes off).
+	var pulse := 1.0
+	if low and not Settings.no_flash:
+		pulse = 0.75 + 0.25 * sin(_time * 6.0)
+	var col := Color(0.78, 0.2, 0.18).lerp(Color(0.9, 0.85, 0.8), 0.25)
+	if low:
+		col = Color(0.86, 0.16, 0.14)
 	var shake := Vector2.ZERO
 	if _hp_hit > 0.0 and Settings.camera_shake > 0.05:
 		shake = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * 3.0 * _hp_hit * Settings.camera_shake
@@ -1465,17 +1736,32 @@ func _draw_health(p: Vector2, a: float) -> void:
 	var label := "%d / %d" % [ceili(maxf(_hp, 0.0)), roundi(_hp_max)]
 	_hud.draw_string(ThemeDB.fallback_font, r.position + Vector2(0.0, -6.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.9, 0.85, 0.82, 0.8 * a))
 	# Dagger icon next to the bar once the player carries it.
-	if "has_dagger" in Game and bool(Game.get("has_dagger")):
+	if _has_dagger():
 		_draw_dagger(r.position + Vector2(w + 22.0, h * 0.5), a)
 
 
+## True once the player has picked up a dagger.
+func _has_dagger() -> bool:
+	if not ("has_dagger" in Game):
+		return false
+	return bool(Game.get("has_dagger"))
+
+
+## Small dagger icon, with its strike cooldown ring.
 func _draw_dagger(p: Vector2, a: float) -> void:
 	var blade := Color(0.85, 0.9, 0.95, 0.9 * a)
 	var grip := Color(0.55, 0.38, 0.22, 0.9 * a)
 	var tip := p + Vector2(8.0, -8.0)
 	var guard := p + Vector2(-2.0, 2.0)
-	_hud.draw_colored_polygon(PackedVector2Array([tip, guard + Vector2(-1.5, -1.5), guard + Vector2(1.5, 1.5)]), blade)
-	_hud.draw_line(guard + Vector2(-4.0, 4.0) - Vector2(-3.0, 3.0), guard + Vector2(3.0, -3.0) + Vector2(1.0, 1.0), grip, 2.0, true)
+	# Blade: a thin triangle from the guard to the tip.
+	var blade_shape := PackedVector2Array()
+	blade_shape.append(tip)
+	blade_shape.append(guard + Vector2(-1.5, -1.5))
+	blade_shape.append(guard + Vector2(1.5, 1.5))
+	_hud.draw_colored_polygon(blade_shape, blade)
+	# Cross-guard.
+	_hud.draw_line(guard + Vector2(-1.0, 1.0), guard + Vector2(4.0, -2.0), grip, 2.0, true)
+	# Handle.
 	_hud.draw_line(guard, guard + Vector2(-6.0, 6.0), grip, 2.5, true)
 	var cool: float = float(_pget("attack_cooldown", 0.0))
 	if cool > 0.001:
@@ -1485,7 +1771,9 @@ func _draw_dagger(p: Vector2, a: float) -> void:
 
 ## Small ring around the crosshair while the strike recovers.
 func _draw_attack_ring(c: Vector2, a: float) -> void:
-	if not _combat_on() or not ("has_dagger" in Game and bool(Game.get("has_dagger"))):
+	if not _combat_on():
+		return
+	if not _has_dagger():
 		return
 	var cool: float = float(_pget("attack_cooldown", 0.0))
 	if cool <= 0.001:
@@ -1494,6 +1782,7 @@ func _draw_attack_ring(c: Vector2, a: float) -> void:
 	_hud.draw_arc(c, 22.0, PI * 0.75, PI * 0.75 + PI * 0.5 * f, 16, Color(1.0, 0.55, 0.45, 0.7 * a), 2.0, true)
 
 
+## Floating damage numbers above hit Listeners.
 func _draw_damage_numbers() -> void:
 	if _dmg_numbers.is_empty():
 		return
@@ -1505,8 +1794,15 @@ func _draw_damage_numbers() -> void:
 		if cam.is_position_behind(pos):
 			continue
 		var age: float = n["age"]
-		var sp := cam.unproject_position(pos) + Vector2(float(n["dx"]), -40.0 * age)
+		# Drift upward over time, with a small random sideways offset.
+		var drift := Vector2(float(n["dx"]), -40.0 * age)
+		var sp := cam.unproject_position(pos) + drift
 		var al := 1.0 - smoothstep(0.6, 1.1, age)
-		var fs := 22 if age > 0.12 else 28
-		_hud.draw_string_outline(ThemeDB.fallback_font, sp, str(n["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1, fs, 4, Color(0.0, 0.0, 0.0, 0.7 * al))
-		_hud.draw_string(ThemeDB.fallback_font, sp, str(n["text"]), HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color(1.0, 0.85, 0.4, al))
+		# Big for the first moment, then normal size.
+		var fs := 28
+		if age > 0.12:
+			fs = 22
+		var text := str(n["text"])
+		var font := ThemeDB.fallback_font
+		_hud.draw_string_outline(font, sp, text, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, 4, Color(0.0, 0.0, 0.0, 0.7 * al))
+		_hud.draw_string(font, sp, text, HORIZONTAL_ALIGNMENT_CENTER, -1, fs, Color(1.0, 0.85, 0.4, al))
