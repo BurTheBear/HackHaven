@@ -204,10 +204,14 @@ func _on_ping(origin: Vector3, max_radius: float, loud: bool) -> void:
 	var reach := minf(max_radius, hearing_radius) * _hearing_mult()
 	if d > reach:
 		return
-	# React when the sound actually reaches us, not instantly.
+	# Keep the earliest arriving sound: repeated footsteps must not keep
+	# pushing an already travelling ripple back into the future.
+	var delay := d / SOUND_SPEED
+	if _hear_delay >= 0.0 and _hear_delay <= delay:
+		return
 	_heard_origin = origin
 	_heard_lure = false
-	_hear_delay = d / SOUND_SPEED
+	_hear_delay = delay
 
 
 ## A pebble's ping reached us: remember it was a lure and where it was thrown from.
@@ -1017,9 +1021,9 @@ func _update_pursuit(delta: float) -> void:
 	if p == null or p.call("is_hidden") == true:
 		_pursuing = false  # last known position stays the target
 		return
-	if _lose > 0.0:
+	if _seen:
 		_target = Vector3(p.global_position.x, global_position.y, p.global_position.z)
-	else:
+	elif _lose <= 0.0:
 		_pursuing = false  # lost them: go to the last known spot, then search
 
 
@@ -1052,7 +1056,7 @@ func _try_attack(p: Node3D) -> void:
 
 ## Hurt by the player's dagger: stagger, flash, cry out; dies at 0.
 func take_damage(amount: int, from: Vector3 = Vector3.ZERO) -> void:
-	if is_dead or amount <= 0:
+	if not Game.damage_enabled() or is_dead or amount <= 0:
 		return
 	health = maxi(health - amount, 0)
 	_flash = 1.0

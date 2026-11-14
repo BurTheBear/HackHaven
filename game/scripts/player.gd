@@ -1,7 +1,7 @@
 extends CharacterBody3D
 ## First-person player: walk / sneak / run (with stamina), mouse and controller
-## look, ping, whisper ping, throw pebbles (hold to aim, release to throw) and
-## numbered chalk marks.
+## look, ping, whisper ping, pebbles (hold to aim, release to throw), stealth
+## and optional dagger combat.
 ## Camera feel: sneak crouch, opt-in head bob, landing dip, wall bumps, a
 ## little extra FOV at a sprint and a slow roll when the dread is high.
 
@@ -25,7 +25,6 @@ const AIM_SHOW_DELAY := 0.12  ## Hold throw this long to see the arc. A quick ta
 const ARC_DOTS := 30
 const ARC_SUBSTEPS := 3  ## Physics steps between two arc dots.
 const FALL_LIMIT := -3.0
-const MAX_MARKS := 6
 ## How far Listeners hear your footsteps. Sneaking is silent.
 const WALK_NOISE := 3.0
 const RUN_NOISE := 9.0
@@ -53,10 +52,6 @@ const WALL_DRAG := 0.45  ## Up to this much slower while scraping along a wall.
 const BUMP_SPEED := 2.0
 const BUMP_COOLDOWN := 0.8
 const SURFACES := ["wood", "gravel", "water"]
-const CHALK_GOLD := Color(0.55, 0.42, 0.12)
-const CHALK_WHITE := Color(0.62, 0.62, 0.58)
-const LABEL_GOLD := Color(1.0, 0.78, 0.3, 0.5)
-const LABEL_WHITE := Color(0.92, 0.92, 0.9, 0.5)
 const ARC_COLOR := Color(1.0, 0.8, 0.32, 0.85)
 ## Holding your breath: seconds it lasts, seconds to refill, and the gasp when it runs out.
 const BREATH_TIME := 6.0
@@ -89,7 +84,6 @@ var is_running := false
 var noise_radius := 0.0  ## How far Listeners can hear your footsteps right now (0 = silent).
 var stamina := 1.0  ## 0 – 1.
 var is_winded := false  ## Out of stamina: forced to walk until it refills a bit.
-var chalk_white := false  ## Next chalk marks are white instead of gold.
 var shake := 0.0  ## Set every frame by the Director (how close the Listeners are).
 var breath := 1.0  ## 0 - 1: how much held breath is left (HUD).
 var holding_breath := false  ## Silent while true (footsteps and floors make no noise).
@@ -99,11 +93,6 @@ var hide_exposed := false  ## Hiding but found / noisy: Listeners can catch you 
 
 var _kick := 0.0  ## Extra shake for a moment (getting caught).
 var _step_timer := 0.0
-var _marks: Array[Node3D] = []
-var _mark_count := 0
-var _mark_mesh: CylinderMesh
-var _mark_gold: StandardMaterial3D
-var _mark_white: StandardMaterial3D
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var _pebble_damp: float = ProjectSettings.get_setting("physics/3d/default_linear_damp", 0.1)
 # Input state.
@@ -592,7 +581,7 @@ func _surface() -> String:
 
 # ---------------------------------------------------------------- Actions
 
-## Dagger, ping, whisper, chalk and throw buttons.
+## Dagger, ping, whisper and throw buttons.
 func _actions(delta: float, can_act: bool) -> void:
 	attack_cooldown = maxf(attack_cooldown - delta, 0.0)
 	_update_viewmodel()
@@ -609,11 +598,6 @@ func _actions(delta: float, can_act: bool) -> void:
 				_ping_buffered = true
 		if Input.is_action_just_pressed("whisper"):
 			try_whisper()
-		if Input.is_action_just_pressed("chalk") and not is_hiding:
-			# Chalk while holding sneak: switch gold / white for the next marks.
-			if Input.is_action_pressed("sneak"):
-				chalk_white = not chalk_white
-			drop_mark()
 		if Input.is_action_just_pressed("throw") and not is_hiding:
 			_begin_aim()
 	if was_cooling and ping_cooldown <= 0.0:
@@ -778,84 +762,6 @@ func _build_arc() -> void:
 		dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_arc_root.add_child(dot)
 		_arc_dots.append(dot)
-
-
-## Chalk mark on the floor: faint gold (or white), numbered, stays after the
-## echo fades. Your own map.
-func drop_mark() -> void:
-	# Find the floor under the player.
-	var from := global_position + Vector3.UP * 0.5
-	var hit := _ray(from, from + Vector3.DOWN * 2.0)
-	if hit.is_empty():
-		return
-	if _mark_mesh == null:
-		_make_mark_resources()
-	_mark_count += 1
-
-	# Pick gold or white.
-	var material := _mark_gold
-	var color := CHALK_GOLD
-	var label_color := LABEL_GOLD
-	var pitch := 1.0
-	if chalk_white:
-		material = _mark_white
-		color = CHALK_WHITE
-		label_color = LABEL_WHITE
-		pitch = 1.15
-
-	var mark := MeshInstance3D.new()
-	mark.mesh = _mark_mesh
-	mark.material_override = material
-	mark.add_to_group("chalk_mark")
-	mark.set_meta("number", _mark_count)
-	mark.set_meta("color", color)
-	mark.add_child(_make_mark_label(_mark_count, label_color))
-	get_parent().add_child(mark)
-	var floor_pos: Vector3 = hit["position"]
-	mark.global_position = floor_pos + Vector3.UP * 0.015
-
-	# Keep only the newest MAX_MARKS marks.
-	_marks.append(mark)
-	if _marks.size() > MAX_MARKS:
-		var old: Node3D = _marks.pop_front()
-		if is_instance_valid(old):
-			old.queue_free()
-	Sfx.play("chalk", -8.0, &"Cave", pitch)
-	Game.add_stat("chalk")
-
-
-## The disc mesh and the two chalk materials (made once, shared by all marks).
-func _make_mark_resources() -> void:
-	_mark_mesh = CylinderMesh.new()
-	_mark_mesh.top_radius = 0.2
-	_mark_mesh.bottom_radius = 0.2
-	_mark_mesh.height = 0.02
-	_mark_gold = _chalk_material(CHALK_GOLD)
-	_mark_white = _chalk_material(CHALK_WHITE)
-
-
-## The floating number above a chalk mark.
-func _make_mark_label(number: int, label_color: Color) -> Label3D:
-	var label := Label3D.new()
-	label.text = str(number)
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
-	label.font_size = 48
-	label.pixel_size = 0.004
-	label.outline_size = 6
-	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.6)
-	label.modulate = label_color
-	label.visibility_range_end = 30.0
-	label.position = Vector3(0.0, 0.3, 0.0)
-	return label
-
-
-## A flat, unshaded material for chalk.
-func _chalk_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = color
-	return mat
 
 
 # ---------------------------------------------------------------- Breath and hiding
