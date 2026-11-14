@@ -1,6 +1,8 @@
 # HackHaven
 
-Our Hack Club Haven game jam entry: a 3D game built in Godot 4.
+Our Hack Club Haven game jam entry: **ECHO**, a first-person stealth-horror game built in Godot 4 where the only way to see is to make noise.
+
+**Full game design doc: [DESIGN.md](DESIGN.md)**
 
 ## Folders
 - `game/`: the Godot project. Open `game/project.godot` in Godot.
@@ -18,5 +20,19 @@ Our Hack Club Haven game jam entry: a 3D game built in Godot 4.
 - Each person works in their own scenes. Only one person edits `main.tscn`.
 - Export to web early and test the browser build often.
 - Art and sound: CC0 asset packs only (Kenney, Quaternius, KayKit, Poly Pizza, Poly Haven). No AI-generated art or audio (Haven rule). Credit every pack below.
+
+## Godot MCP (optional)
+`.mcp.json` connects Claude Code to Godot through the [Godot MCP server](https://github.com/Coding-Solo/godot-mcp). It can launch the editor, run the game and read its errors and debug output.
+- **Claude Code:** run `claude` from the repo root and approve the `godot` server when asked. If Godot isn't installed at `/Applications/Godot.app`, set `GODOT_PATH` to your Godot executable first.
+- **Codex:** add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.godot]
+command = "npx"
+args = ["-y", "@coding-solo/godot-mcp"]
+env = { GODOT_PATH = "/Applications/Godot.app/Contents/MacOS/Godot" }
+```
+
+- Stay within Haven's AI rules: use it to run and debug the game, not to build the game for you.
 
 ## Credits
