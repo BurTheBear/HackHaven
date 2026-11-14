@@ -26,6 +26,17 @@ signal player_fell
 signal stat_changed(stat_name: String, value: int)
 ## A journal page was found (gameplay emits; this script records it once).
 signal journal_page(index: int, text: String)
+# --- Combat (damage mode, Settings.damage_enabled) ---
+## Player health changed (damage, respawn, new run).
+signal health_changed(hp: int, max_hp: int)
+## The player was hurt by `amount` from a Listener at `from`.
+signal player_damaged(amount: int, from: Vector3)
+## A dagger was picked up (Game.has_dagger is now true).
+signal dagger_picked
+## A Listener was killed.
+signal listener_killed(listener_position: Vector3)
+## The player's dagger hurt a Listener (HUD floating damage numbers).
+signal listener_damaged(amount: int, world_position: Vector3)
 
 ## CUTSCENE was added last so the other values never change.
 enum State { TITLE, PLAYING, CAUGHT, WON, CUTSCENE }
@@ -40,7 +51,7 @@ var state: State = State.TITLE
 var pebbles := START_PEBBLES
 var max_pebbles := 5
 var ping_radius := 22.0
-var ping_cooldown := 1.0
+var ping_cooldown := 2.0
 var checkpoint_position := Vector3.ZERO
 var checkpoint_pebbles := START_PEBBLES
 var catcher_position := Vector3.ZERO
@@ -57,6 +68,10 @@ var current_zone := ""
 var stats := {}
 var logs_found: Array[int] = []
 var crystals_found := 0
+## Combat: health (only used while damage mode is on) and the dagger.
+var player_max_health := 20
+var player_health := 20
+var has_dagger := false
 
 # --- Added by the UI owner (menus, saves, cutscenes) ---
 ## True once the boot cards and the click gate have been shown this session.
@@ -153,7 +168,7 @@ func reset(spawn: Vector3) -> void:
 	pebbles = START_PEBBLES
 	max_pebbles = 5
 	ping_radius = 22.0
-	ping_cooldown = 1.0
+	ping_cooldown = 2.0
 	checkpoint_position = spawn
 	checkpoint_pebbles = START_PEBBLES
 	times_caught = 0
@@ -168,6 +183,9 @@ func reset(spawn: Vector3) -> void:
 	log_texts = {}
 	journal_found.clear()
 	journal_texts = {}
+	has_dagger = false
+	player_health = player_max_health
+	health_changed.emit(player_health, player_max_health)
 	if challenge == "one_pebble":
 		max_pebbles = 1
 		pebbles = 1
@@ -212,7 +230,7 @@ func apply_upgrade(kind: int) -> String:
 			ping_radius *= 1.2
 			return "Echo crystal: your call carries further."
 		Upgrade.PING_COOLDOWN:
-			ping_cooldown = maxf(ping_cooldown - 0.2, 0.4)
+			ping_cooldown = maxf(ping_cooldown - 0.4, 0.8)
 			return "Echo crystal: you can call again sooner."
 		_:
 			max_pebbles += 1
@@ -241,6 +259,8 @@ func catch_player(from: Vector3 = Vector3.ZERO) -> void:
 func respawned() -> void:
 	pebbles = checkpoint_pebbles
 	pebbles_changed.emit(pebbles)
+	player_health = player_max_health
+	health_changed.emit(player_health, player_max_health)
 	_set_state(State.PLAYING)
 
 
@@ -256,6 +276,55 @@ func win() -> void:
 	clear_save()
 	_set_state(State.WON)
 	game_won.emit()
+
+
+# ---------------------------------------------------------------- Combat
+
+## Damage mode (Settings.damage_enabled, default on). Off = instant catch.
+func damage_enabled() -> bool:
+	return Settings.get("damage_enabled") != false
+
+
+func health_fraction() -> float:
+	return float(player_health) / float(maxi(player_max_health, 1))
+
+
+## Damage of one Listener hit (1 s apart): 2 above half health, less as you
+## weaken (1 at 30% or lower), halved in assist mode. Never 0.
+func listener_hit_damage() -> int:
+	var f := health_fraction()
+	var dmg := 2.0
+	if f <= 0.3:
+		dmg = 1.0
+	elif f <= 0.5:
+		dmg = 1.0 + (f - 0.3) / 0.2  # 1..2, rounded down
+	var d := int(floor(dmg))
+	if Settings.assist_mode:
+		d = int(d * 0.5)
+	return maxi(d, 1)
+
+
+## Damage of one dagger stab: 5, or 4 while the player is at 30% health or lower.
+func dagger_damage() -> int:
+	return 4 if health_fraction() <= 0.3 else 5
+
+
+## Hurts the player; at 0 HP this is the usual catch (and respawn).
+func damage_player(amount: int, from: Vector3 = Vector3.ZERO) -> void:
+	if state != State.PLAYING or amount <= 0:
+		return
+	player_health = maxi(player_health - amount, 0)
+	add_stat("damage_taken", amount)
+	player_damaged.emit(amount, from)
+	health_changed.emit(player_health, player_max_health)
+	if player_health <= 0:
+		catch_player(from)
+
+
+func pick_dagger() -> void:
+	has_dagger = true
+	add_stat("daggers_found")
+	dagger_picked.emit()
 
 
 func show_subtitle(text: String) -> void:
@@ -306,6 +375,7 @@ func save_checkpoint() -> void:
 	cfg.set_value("save", "times_caught", times_caught)
 	cfg.set_value("save", "run_time", run_time)
 	cfg.set_value("save", "current_zone", current_zone)
+	cfg.set_value("save", "has_dagger", has_dagger)
 	cfg.save(RUN_SAVE_PATH)
 
 
@@ -320,7 +390,7 @@ func load_save() -> bool:
 	checkpoint_pebbles = int(cfg.get_value("save", "pebbles", START_PEBBLES))
 	max_pebbles = int(cfg.get_value("save", "max_pebbles", 5))
 	ping_radius = float(cfg.get_value("save", "ping_radius", 22.0))
-	ping_cooldown = float(cfg.get_value("save", "ping_cooldown", 1.0))
+	ping_cooldown = float(cfg.get_value("save", "ping_cooldown", 2.0))
 	upgrades.clear()
 	for v in cfg.get_value("save", "upgrades", []):
 		upgrades.append(int(v))
@@ -340,6 +410,7 @@ func load_save() -> bool:
 	times_caught = int(cfg.get_value("save", "times_caught", 0))
 	run_time = float(cfg.get_value("save", "run_time", 0.0))
 	current_zone = str(cfg.get_value("save", "current_zone", ""))
+	has_dagger = bool(cfg.get_value("save", "has_dagger", false))
 	pebbles = checkpoint_pebbles
 	pebbles_changed.emit(pebbles)
 	return true

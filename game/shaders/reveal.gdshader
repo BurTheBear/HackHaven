@@ -66,6 +66,16 @@ uniform sampler2D tex_wall : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D nor_floor : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D nor_wall : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
+// 0 turns the world-space grid lines off completely.
+uniform float use_grid = 1.0;
+// Listener look (ai_listener_body.gd): crimson body with a near-black core,
+// sickly pale rim, wet sheen, glowing bright spots, pulse when a ring passes.
+// Uses albedo_tex / listener_normal via UV (white / flat when unset).
+uniform float listener_look = 0.0;
+uniform sampler2D listener_normal : hint_normal, filter_linear_mipmap, repeat_enable;
+// 0..1 white-hot hurt flash, and 0..1 death (darken + dissolve).
+uniform float hurt_flash = 0.0;
+uniform float dying = 0.0;
 
 const vec3 GOLD = vec3(1.0, 0.76, 0.3);
 
@@ -77,21 +87,22 @@ void vertex() {
 	wnorm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 
-// Bounce timing (fractions of the ring's travel time T = max_r / ping_speed).
-const float EASE_B = 0.3;      // ease-out: starts 1.3x fast, slows to 0.7x at max_r
-const float SPRING_W = 7.0;    // spring frequency of the overshoot
-const float SPRING_Z = 2.6;    // spring damping
-const float BACK_START = 0.22; // return ring leaves after the overshoot peak
-const float BACK_SPEED = 0.85; // return ring speed (x ping_speed)
+// Ring timing (fractions of the ring's travel time T = max_r / ping_speed).
+// The ring still reaches max_r at exactly T (distance / ping_speed on average).
+const float EASE_B = 0.25;     // gentle ease-out: starts 1.25x fast, ends 0.75x
+const float BACK_START = 0.25; // the faint return ring leaves a moment after T
+const float BACK_SPEED = 0.8;  // return ring speed (x ping_speed)
 
-// Thin soft band around 0.
-float band(float x, float w) {
-	return 1.0 - smoothstep(0.0, w, abs(x));
+// Soft gaussian bump around 0 with width w.
+float soft(float x, float w) {
+	float k = x / max(w, 0.001);
+	return exp(-k * k);
 }
 
-// One ping at `pos`. x = ring, y = afterglow, z = white leading edge, w = memory.
-// The ring eases out, overshoots max_r on a damped spring, then a fainter
-// return ring bounces back to the origin; two reverb ripples trail the front.
+// One ping at `pos`. x = ring, y = afterglow, z = soft leading glow, w = memory.
+// One soft ring eases out to max_r and fades there; a faint soft ring then
+// drifts back toward the origin. Surfaces brighten gently as the ring passes
+// and settle smoothly into the afterglow.
 vec4 ping_light(vec3 pos, vec4 p, float max_r, float pebble) {
 	if (p.w < 0.0) {
 		return vec4(0.0);
@@ -104,64 +115,54 @@ vec4 ping_light(vec3 pos, vec4 p, float max_r, float pebble) {
 	float t = p.w;
 	float T = max_r / ping_speed;
 	float x = t / T;
-	// Main ring radius: eased growth, then a damped spring around max_r.
 	float u = max(x - 1.0, 0.0);
-	float e = x < 1.0 ? x + EASE_B * x * (1.0 - x)
-		: 1.0 + (1.0 - EASE_B) * sin(SPRING_W * u) / SPRING_W * exp(-SPRING_Z * u);
-	float r = max_r * e;
+	float xc = min(x, 1.0);
+	float r = max_r * (xc + EASE_B * xc * (1.0 - xc));
 	// > 0: the ring hasn't reached this point yet (nothing else has either).
 	float ahead = d - r;
-	if (ahead > ring_width * 1.3) {
+	if (ahead > ring_width * 1.6) {
 		return vec4(0.0);
 	}
 	// Whisper pings (player slots, radius ~6 m) are drawn thinner and dimmer.
 	float whisper = (1.0 - pebble) * step(5.5, max_r) * step(max_r, 6.5);
-	float thin = mix(1.0, 0.45, whisper);
+	float thin = mix(1.0, 0.5, whisper);
 	float dim = mix(1.0, 0.55, whisper);
 	float extra = mix(1.0, 0.7, max(pebble, whisper));
 	float edge = 1.0 - smoothstep(max_r * 0.75, max_r * 1.08, d);
-	// The front fades out while it springs at max_r.
-	float out_amp = 1.0 - smoothstep(0.05, 0.7, u);
-	// Leading edge wobbles a little in thickness around the ring.
-	vec3 dir = dv / max(d, 0.001);
-	float wob = 1.0 + 0.22 * sin(dir.x * 9.0 + dir.z * 7.0 + dir.y * 5.0 + t * 11.0);
-	float w = ring_width * thin * wob;
-	float ring = band(ahead, w) * out_amp;
-	float lead = band(ahead - 0.08, 0.22 * thin * wob) * out_amp;
-	// Reverb: two smaller ripples trailing the front, decaying.
-	float lag = 0.09 * max_r + 0.7 * ring_width * thin;
-	float rip = 0.0;
-	if (out_amp > 0.0 && ahead < -0.5 * lag) {
-		rip = (band(ahead + lag, w * 0.6) * 0.45 + band(ahead + 2.0 * lag, w * 0.45) * 0.2) * out_amp * extra;
-	}
-	// Bounce back: a fainter ring travels from max_r back toward the origin.
+	// The ring softly fades out once it has reached max_r.
+	float out_amp = 1.0 - smoothstep(0.0, 0.45, u);
+	float w = ring_width * thin;
+	// Wide soft band: a little tighter in front, a long soft tail behind.
+	float ring = soft(ahead, ahead > 0.0 ? w * 0.6 : w * 1.5) * out_amp;
+	// The leading edge is a soft glow, not a line.
+	float lead = soft(ahead - 0.05, w * 0.45) * out_amp * 0.4;
+	// Bounce back: one faint, soft ring drifting from max_r toward the origin.
 	float tb0 = T * (1.0 + BACK_START);
 	float back = 0.0;
-	float flash_b = 0.0;
 	if (t > tb0) {
 		float rb = max_r - (t - tb0) * ping_speed * BACK_SPEED;
 		if (rb > -ring_width) {
 			float prog = clamp(1.0 - rb / max_r, 0.0, 1.0);
-			float amp = 0.38 * extra * smoothstep(0.0, 0.08, prog) * (1.0 - smoothstep(0.55, 1.0, prog));
-			back = band(d - rb, w * 0.7) * amp;
-			float sb = t - (tb0 + (max_r - d) / (ping_speed * BACK_SPEED));
-			flash_b = step(0.0, sb) * exp(-sb * 7.0) * amp * 1.2;
+			float amp = 0.2 * extra * smoothstep(0.0, 0.15, prog) * (1.0 - smoothstep(0.4, 1.0, prog));
+			back = soft(d - rb, w * 1.1) * amp;
 		}
 	}
 	// Seconds since the main ring passed this point (invert the ease).
 	float y = d / max_r;
 	float xa = y >= 1.0 ? 1.0 : ((1.0 + EASE_B) - sqrt((1.0 + EASE_B) * (1.0 + EASE_B) - 4.0 * EASE_B * y)) / (2.0 * EASE_B);
 	float since = t - xa * T;
-	float passed = step(0.0, since);
-	float fade = clamp(since / afterglow, 0.0, 1.0);
-	float glow = passed * (1.0 - fade) * 0.45;
+	float passed = smoothstep(-0.1, 0.12, since);
+	float sp = max(since, 0.0);
+	float fade = clamp(sp / afterglow, 0.0, 1.0);
+	float glow = passed * (1.0 - fade) * (1.0 - fade * 0.3) * 0.45;
 	float n = fract(sin(floor(p.w * 14.0) * 12.9898 + p.x * 4.1 + p.z * 1.7) * 43758.5453);
 	glow *= 1.0 - flicker * smoothstep(0.35, 1.0, fade) * n;
 	glow *= 1.0 + ripple * 0.6 * sin(d * 4.0 - p.w * 7.0);
-	// Surfaces flash a little as a ring passes, then settle into the afterglow.
-	glow += passed * exp(-since * 6.0) * 0.5 + flash_b;
-	float mem = passed * echo_memory * (1.0 - clamp(since / memory_time, 0.0, 1.0));
-	return vec4((ring + rip + back) * dim, glow * dim, (lead + back * 0.35) * dim, mem) * edge;
+	// A gentle brightening as the ring passes that eases into the afterglow.
+	float k = sp / 0.3;
+	glow += passed * k * exp(1.0 - k) * 0.22;
+	float mem = step(0.0, since) * echo_memory * (1.0 - clamp(sp / memory_time, 0.0, 1.0));
+	return vec4((ring + back) * dim, glow * dim, (lead + back * 0.2) * dim, mem) * edge;
 }
 
 void fragment() {
@@ -184,7 +185,7 @@ void fragment() {
 	vec3 f = abs(fract(g + 0.5) - 0.5);
 	vec3 gw = fwidth(g) * 1.5;
 	vec3 lines = (vec3(1.0) - smoothstep(vec3(0.0), gw, f)) * (vec3(1.0) - step(vec3(0.9), abs(wnorm)));
-	float grid = max(max(lines.x, lines.y), lines.z);
+	float grid = max(max(lines.x, lines.y), lines.z) * use_grid;
 	float rim = 1.0 - abs(dot(NORMAL, VIEW));
 	float detail = textured ? 1.0 : (0.3 + 0.7 * grid + 0.5 * rim);
 	// Textured surfaces keep only a very faint grid.
@@ -208,7 +209,43 @@ void fragment() {
 	float lead = clamp(lp.z + lb.z, 0.0, 1.0);
 
 	vec3 col;
-	if (textured) {
+	if (listener_look > 0.5) {
+		// Dissolve while dying: hashed cells drop out, edges smoulder.
+		vec3 cell = floor(wpos * 14.0);
+		float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+		float cut = dying * 1.05;
+		if (dying > 0.001 && h < cut) {
+			discard;
+		}
+		float burn = dying > 0.001 ? 1.0 - smoothstep(0.0, 0.12, h - cut) : 0.0;
+		float L = lp.x * 1.4 + lp.y + lb.x * 1.4 + lb.y + mem * 0.6;
+		float pulse = clamp((lp.x + lb.x) * 1.2 + lead, 0.0, 1.5);
+		vec3 tex = texture(albedo_tex, UV).rgb;
+		float lum = dot(tex, vec3(0.299, 0.587, 0.114));
+		vec3 nm = texture(listener_normal, UV).xyz * 2.0 - 1.0;
+		vec3 n = normalize(NORMAL);
+		vec3 pn = normalize(TANGENT * nm.x + BINORMAL * nm.y + n * max(nm.z, 0.2));
+		if (!FRONT_FACING) {
+			pn = -pn;
+			n = -n;
+		}
+		float ndv = clamp(dot(pn, VIEW), 0.0, 1.0);
+		// Near-black core in the cavities, deep crimson on the raised flesh.
+		float flesh = clamp(lum * 3.5, 0.0, 1.0);
+		vec3 body = mix(vec3(0.05, 0.0, 0.008), vec3(0.62, 0.02, 0.05), flesh);
+		body = mix(body, echo_color * 0.5, 0.15) * (0.55 + 0.45 * ndv);
+		float fres = pow(1.0 - ndv, 2.6);
+		vec3 rim = vec3(0.86, 0.9, 0.72) * fres * 0.9;
+		float sheen = pow(ndv, 28.0) * (0.35 + flesh * 0.6);
+		float eyes = smoothstep(0.3, 0.5, lum);
+		vec3 lit = (body * exposure * 1.4 + rim + vec3(1.0, 0.85, 0.8) * sheen * 0.5) * L;
+		lit += vec3(1.0, 0.25, 0.08) * eyes * min(L * 3.0, 1.0) * 1.6;
+		// A short pulse as a ring sweeps over it: brighter, paler edges.
+		lit += (vec3(0.9, 0.08, 0.1) * 0.6 + vec3(0.85, 0.9, 0.75) * fres) * pulse * 0.8;
+		col = lit * (1.0 - dying * 0.85);
+		col += vec3(1.0, 0.18, 0.05) * burn * 2.0;
+		col = mix(col, vec3(1.6, 1.45, 1.25), clamp(hurt_flash, 0.0, 1.0));
+	} else if (textured) {
 		vec3 albedo = vec3(0.6);
 		float shade = 1.0;
 		float light_sum = ip + ib + near + assist + memv + lead;
@@ -252,7 +289,7 @@ void fragment() {
 		col += echo_color * grid * (lp.x + lb.x) * 0.1;
 		float peak = max(max(col.r, col.g), col.b);
 		col = mix(col, vec3(peak), clamp((lp.x + lb.x) * 0.12, 0.0, 0.25));
-		col += vec3(lead * 0.9);
+		col += vec3(lead * 0.6);
 	} else {
 		col = echo_color * (ip + near + assist + memv) + mix(echo_color, GOLD, pebble_tint) * ib;
 		float peak = max(max(col.r, col.g), col.b);
