@@ -12,12 +12,12 @@ const TEXT := Color(0.86, 0.88, 0.9)
 const MUTED := Color(0.55, 0.6, 0.64)
 const KEYS_PATH := "user://keys.cfg"
 const REBINDABLE := [
-	"move_forward", "move_back", "move_left", "move_right", "ping", "throw", "whisper",
+	"move_forward", "move_back", "move_left", "move_right", "ping", "jump", "throw", "whisper",
 	"chalk", "interact", "sneak", "run", "map", "pause",
 ]
 const ACTION_NAMES := {
 	"move_forward": "Move forward", "move_back": "Move back", "move_left": "Move left",
-	"move_right": "Move right", "ping": "Ping (call out)", "throw": "Throw pebble",
+	"move_right": "Move right", "ping": "Ping (call out)", "jump": "Jump", "throw": "Throw pebble",
 	"whisper": "Whisper ping", "chalk": "Chalk mark", "interact": "Interact / play log",
 	"sneak": "Sneak", "run": "Run", "map": "Map", "pause": "Pause",
 }
