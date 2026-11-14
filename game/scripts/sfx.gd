@@ -139,10 +139,26 @@ func play_3d(sound: String, pos: Vector3, volume_db: float = 0.0, bus: StringNam
 
 ## The stream for a sound name: a file from res://audio/ if there is one,
 ## else synthesized (and cached).
+## Sounds gameplay uses that have no synthesized version yet. Until a file
+## res://audio/<name>.ogg/.wav/.mp3 exists, they reuse a similar sound.
+const STAND_INS := {
+	"breath_hold": "pant",
+	"breath_release": "pant",
+	"splash": "drip",
+	"bone_crunch": "knock",
+	"plank_creak": "rope_creak",
+	"listener_roar": "shriek",
+	"chase_music": "drone",
+}
+
+
 func stream(sound: String) -> AudioStream:
 	if _cache.has(sound):
 		return _cache[sound]
 	var s: AudioStream = _load_file(sound)
+	if s == null and STAND_INS.has(sound):
+		# No recording yet: borrow a similar synthesized sound (pitched in play()).
+		s = stream(String(STAND_INS[sound]))
 	if s == null:
 		s = _build(sound)
 	_cache[sound] = s
