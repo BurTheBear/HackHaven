@@ -13,6 +13,9 @@ var _life := LIFETIME
 
 
 func _ready() -> void:
+	if click.stream == null:
+		click.stream = Sfx.stream("pebble")
+	click.unit_size = 4.0
 	contact_monitor = true
 	max_contacts_reported = 4
 	body_entered.connect(_on_body_entered)
