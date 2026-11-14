@@ -52,8 +52,12 @@ func _bake() -> void:
 	mesh.cell_size = 0.25
 	mesh.cell_height = 0.25
 	var source := NavigationMeshSourceGeometryData3D.new()
-	# Geometry is parsed relative to the cave, so the region copies its transform.
-	NavigationServer3D.parse_source_geometry_data(mesh, source, cave)
+	# Use the cave's collision faces (CPU data) instead of parsing its visual mesh:
+	# reading render meshes back from the GPU is slow and stalls the web build.
+	# Faces are in the cave's local space, so the region copies its transform.
+	var shape := cave.bake_collision_shape()
+	if shape:
+		source.add_faces(shape.get_faces(), Transform3D.IDENTITY)
 	if not source.has_data():
 		push_warning("AiNav: no source geometry parsed; Listeners move in straight lines.")
 		return
