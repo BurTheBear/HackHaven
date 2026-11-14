@@ -13,7 +13,7 @@ Your lantern died deep underground. The only way to see is to make noise, and ev
 - **Physics-based distraction:** pebbles bounce, ping where they land and pull monsters away
 - **Real-time reveal shader:** the world only exists where your echo touches it
 - **Minimalist neon aesthetic:** neon outlines on pure black
-- **AI-voiced environmental storytelling:** voice logs from a lost explorer, made with ElevenLabs (sponsor track)
+- **AI-voiced environmental storytelling:** voice logs from a lost explorer, recorded by the team
 - **3D positional audio** and **environmental storytelling**, paid off by a full-color reveal at the end
 
 ## 3. How it fits "Bounce Back"
@@ -30,7 +30,7 @@ Your lantern died deep underground. The only way to see is to make noise, and ev
 - **The player:** a cave explorer who fell through a sinkhole while mapping a cave called **the Hollow**. The fall smashed their lantern.
 - **The Hollow:** an old mine and natural cave, home to the **Listeners**, blind creatures that hunt by sound.
 - **Goal:** get back to the surface.
-- **Told through the environment, not text:** abandoned mine carts, old rope ladders, chalk arrows left by earlier explorers that only show up in your echoes, the broken lantern at the start, and **Mara's voice logs**: recorders left by an explorer who fell in before you. Her logs tell the story and teach each mechanic (see `ELEVENLABS.md`).
+- **Told through the environment, not text:** abandoned mine carts, old rope ladders, chalk arrows left by earlier explorers that only show up in your echoes, the broken lantern at the start, and **Mara's voice logs**: recorders left by an explorer who fell in before you. Her logs tell the story and teach each mechanic.
 - **Opening (two lines on a black screen):** "The rope snapped. The lantern's gone." → "Call out. Listen. Find your way back."
 - **Ending:** daylight floods the final shaft, the reveal shader switches off, and the whole cave appears in color behind you. Text: "You found your way back."
 
@@ -93,7 +93,7 @@ Each loop takes roughly 10 to 30 seconds.
 - Gold-glowing handheld recorders, visible without pinging, one or two per zone.
 - Walking up to one plays a log from Mara in 3D audio. Ambience gets quieter while she talks.
 - Listeners whisper ("I hear you...") when they start investigating and when they catch you.
-- Every line and prompt is in `ELEVENLABS.md`.
+- The log lines and file names are in git history (the old `ELEVENLABS.md`).
 
 ## 9. Tuning table
 Starting values. Change them during playtests.
@@ -175,10 +175,10 @@ Target length: **5 to 8 minutes** for a first-time player.
 - **Test it in a web export in the first hour.** If it fails in the browser, use the fallback in section 18.
 
 ## 13. Audio design
-Audio is half the game, and all of it is made with **ElevenLabs** for the sponsor track. Every prompt, line and file name is in **[ELEVENLABS.md](ELEVENLABS.md)**.
-- **Voices:** Mara (the lost explorer's voice logs) and the Listeners (inhuman whispers), both made with Voice Design and text-to-speech.
-- **Sound effects and ambience:** ElevenLabs Sound Effects, with several variations of each.
-- Everything is generated ahead of time and committed as files. The game never calls the API.
+Audio is half the game. It comes from CC0 sound packs or sounds the team records itself.
+- **Voices:** Mara (the lost explorer's voice logs) and the Listeners (inhuman whispers), recorded by teammates and pitched or filtered in Audacity.
+- **Sound effects and ambience:** CC0 packs, with several variations of each.
+- Everything is committed as files. The game never calls an external API.
 - **Mix:** pings, footsteps and pebbles go through a "Cave" bus with reverb; voice logs stay dry and clear; ambience gets quieter while a log plays. The ping is the loudest sound in the game.
 
 ## 14. UI and screens
@@ -226,7 +226,7 @@ scenes/  scripts/  shaders/  audio/  assets/models/  sandbox/<name>/
 | Ritesh | Echo system, reveal shader, main scene, ending | Shader working in a test room **and in a web export** |
 | Elias | Player controller, pebbles, Listener AI | Walking, mouse look, and the ping input calling `Echo.emit_ping` |
 | Atharv | Level: 4 zones, checkpoints, pickups, exit | Zones 1 and 2 blocked out in CSG |
-| Shreyansh | ElevenLabs audio (voices, logs, effects), UI, web export, itch.io page, pitch | Mara and Listener voices designed, first logs and ping sounds generated |
+| Shreyansh | Audio (voices, logs, effects), UI, web export, itch.io page, pitch | Mara and Listener voices recorded, first ping sounds collected |
 
 Rule: only edit your own scenes and scripts. Ask before touching someone else's.
 
@@ -262,7 +262,7 @@ Rule: only edit your own scenes and scripts. Ask before touching someone else's.
 1. **Hook (10 s):** "What if the only way to see was to make noise?"
 2. **Live demo (30 s):** the first ping in the tunnel, then the Listening Hall: throw a pebble, sneak past.
 3. **Theme (10 s):** "Echoes bounce back, and so do you. You're blind, hunted, and clawing your way back to the surface."
-4. **Tech (10 s):** "A real-time reveal shader, AI that hunts by sound, physics pebbles, and every voice and sound made with ElevenLabs, built in Godot in 6 hours." End on the color reveal.
+4. **Tech (10 s):** "A real-time reveal shader, AI that hunts by sound, physics pebbles, and hand-recorded voices and sound, built in Godot in 6 hours." End on the color reveal.
 
 ## 21. itch.io page
 - **Title:** ECHO
@@ -271,4 +271,4 @@ Rule: only edit your own scenes and scripts. Ask before touching someone else's.
 - **Screenshots:** a ping mid-ring, a red Listener outline, the pebble lure, the color ending
 
 ## 22. Credits
-Built with Godot 4. Voices, sound effects and ambience made with ElevenLabs. List every asset pack used, here and in the main README.
+Built with Godot 4. Credit every sound source. List every asset pack used, here and in the main README.
