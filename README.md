@@ -5,3 +5,5 @@ Thank you to Hack Club Princeton for hosting us! :D
 
 **Asset list: [ASSETS.md](ASSETS.md)**
 **Design doc: [DESIGN.md](DESIGN.md)**
+
+AI was used for some (minimal) GD-Script code debugging 
