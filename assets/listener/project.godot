@@ -1,0 +1,14 @@
+; Standalone asset review project. Does not modify HackHaven.
+config_version=5
+[application]
+config/name="ECHO • The Hollow Choir — Asset Review"
+run/main_scene="res://Review.tscn"
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=900
+[filesystem]
+import/blender/enabled=false
