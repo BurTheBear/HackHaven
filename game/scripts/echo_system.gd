@@ -10,14 +10,19 @@ signal noise_made(origin: Vector3, radius: float)
 
 const GROUP_SIZE := 4
 const SLOTS := 8
-## Ring reaches 22 m in ~1.2 s, then 2 s of afterglow.
-const MAX_AGE := 3.5
+## The ring reaches 22 m in ~1.2 s, then 2 s of afterglow (longer on landmarks
+## and water). A slot then stays alive up to 15 s so the shader can draw the
+## very faint "echo memory" trace. A new ping still takes a free slot first,
+## else the oldest one in its own group.
+const MAX_AGE := 15.0
 const STEP_FADE := 0.5
 
 var _origins: Array[Vector3] = []
 var _ages: Array[float] = []
 var _radii: Array[float] = []
 var _step_glow := 0.0
+var _since_player_ping := 99.0
+var _player_ping_radius := 22.0
 
 
 func _ready() -> void:
@@ -43,6 +48,9 @@ func emit_ping(origin: Vector3, max_radius: float = 22.0, loud: bool = true, is_
 	_origins[slot] = origin
 	_ages[slot] = 0.0
 	_radii[slot] = max_radius
+	if not is_pebble:
+		_since_player_ping = 0.0
+		_player_ping_radius = max_radius
 	ping_emitted.emit(origin, max_radius, loud)
 
 
@@ -59,10 +67,21 @@ func clear() -> void:
 	for i in SLOTS:
 		_ages[i] = -1.0
 	_step_glow = 0.0
+	_since_player_ping = 99.0
 
 
 func set_player_position(p: Vector3) -> void:
 	RenderingServer.global_shader_parameter_set("player_pos", p)
+
+
+## Seconds since the player's last ping or whisper (dust motes, UI).
+func time_since_player_ping() -> float:
+	return _since_player_ping
+
+
+## Radius of the player's last ping (6 for a whisper).
+func last_player_ping_radius() -> float:
+	return _player_ping_radius
 
 
 func _process(delta: float) -> void:
@@ -75,4 +94,7 @@ func _process(delta: float) -> void:
 		RenderingServer.global_shader_parameter_set("ping_%d" % i, Vector4(o.x, o.y, o.z, _ages[i]))
 		RenderingServer.global_shader_parameter_set("ping_radius_%d" % i, _radii[i])
 	_step_glow = maxf(_step_glow - delta / STEP_FADE, 0.0)
+	_since_player_ping += delta
 	RenderingServer.global_shader_parameter_set("step_glow", _step_glow)
+	# Assist: always-on floor outline near the player (0 = off).
+	RenderingServer.global_shader_parameter_set("hint_glow", clampf(float(Settings.hint_glow), 0.0, 1.0))

@@ -1,9 +1,35 @@
 [gd_resource type="AudioBusLayout" format=3]
 
+[sub_resource type="AudioEffectLowPassFilter" id="AudioEffectLowPassFilter_muffle"]
+resource_name = "Muffle"
+cutoff_hz = 900.0
+
+[sub_resource type="AudioEffectHardLimiter" id="AudioEffectHardLimiter_master"]
+resource_name = "Limiter"
+ceiling_db = -0.5
+
 [sub_resource type="AudioEffectReverb" id="AudioEffectReverb_j3pel"]
-wet = 0.35
+resource_name = "Reverb"
+predelay_msec = 25.0
+room_size = 0.38
+damping = 0.6
+hipass = 0.1
+wet = 0.24
+
+[sub_resource type="AudioEffectAmplify" id="AudioEffectAmplify_duck"]
+resource_name = "Duck"
 
 [resource]
+bus/0/name = &"Master"
+bus/0/solo = false
+bus/0/mute = false
+bus/0/bypass_fx = false
+bus/0/volume_db = 0.0
+bus/0/send = &""
+bus/0/effect/0/effect = SubResource("AudioEffectLowPassFilter_muffle")
+bus/0/effect/0/enabled = false
+bus/0/effect/1/effect = SubResource("AudioEffectHardLimiter_master")
+bus/0/effect/1/enabled = true
 bus/1/name = &"Cave"
 bus/1/solo = false
 bus/1/mute = false
@@ -24,3 +50,5 @@ bus/3/mute = false
 bus/3/bypass_fx = false
 bus/3/volume_db = 0.0
 bus/3/send = &"Master"
+bus/3/effect/0/effect = SubResource("AudioEffectAmplify_duck")
+bus/3/effect/0/enabled = true
