@@ -13,7 +13,7 @@ signal quit_pressed
 const Style = preload("res://scripts/ui_style.gd")
 const PING_EVERY := 4.5
 const RING_TIME := 1.5  ## Seconds for the 2D ring to reach the screen corners.
-const TEAM := "Shreyansh Nikam · Elias Chen · Atharv · Ritesh"
+const TEAM := "Shreyansh Nikam · Elias Chen · Atharv"
 
 var active := false
 
