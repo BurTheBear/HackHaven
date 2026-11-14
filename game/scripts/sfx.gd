@@ -6,6 +6,10 @@ extends Node
 
 const RATE := 16000
 
+## Emitted once every sound is built (UI can show "Listening..." until then).
+signal loaded
+var is_loaded := true
+
 var _cache := {}
 var _players: Array[AudioStreamPlayer] = []
 
@@ -243,3 +247,8 @@ func _chalk() -> PackedFloat32Array:
 		lp += (x - lp) * 0.5
 		s[i] = (x - lp) * (0.5 + 0.5 * sin(TAU * 40.0 * t)) * sin(PI * t / 0.25) * 0.5
 	return s
+
+
+## Muffle all audio (low-pass) while paused. Stub: Agent C implements.
+func set_muffled(_on: bool) -> void:
+	pass
