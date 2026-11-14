@@ -29,13 +29,11 @@ const TIPS := [
 	"Running is loud. They hear your steps from nine metres.",
 	"Listen first. You can hear them breathing before you see them.",
 	"A sleeping one only wakes if you call out close to it.",
-	"Chalk marks stay when the echo fades. Leave yourself a trail.",
 ]
 ## id: [action, text]. The bound key is shown in front: "[Q]  Whisper...".
 const PROMPTS := {
 	"ping": ["ping", "Call out. The cave answers, and so might something else."],
 	"whisper": ["whisper", "Whisper: a small echo nothing can hear."],
-	"chalk": ["chalk", "Chalk mark: it stays when the echo fades."],
 	"throw": ["throw", "Throw a pebble. Hold to aim. Its echo lands far away."],
 	"jump": ["jump", "Jump. The landing makes a sound."],
 	"sneak": ["sneak", "Sneak: your footsteps go silent."],
@@ -1784,7 +1782,7 @@ func _draw_attack_ring(c: Vector2, a: float) -> void:
 
 ## Floating damage numbers above hit Listeners.
 func _draw_damage_numbers() -> void:
-	if _dmg_numbers.is_empty():
+	if not Game.damage_enabled() or _dmg_numbers.is_empty():
 		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:

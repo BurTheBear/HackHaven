@@ -117,7 +117,7 @@ func _ready() -> void:
 ## GAMEPLAY tab rows.
 func _build_gameplay() -> void:
 	_section("COMBAT")
-	_check("Damage & combat (off: Listeners catch instantly)", "damage_enabled")
+	_check("Knives & damage (optional; off: instant catch)", "damage_enabled")
 	_option("Difficulty", "difficulty", Settings.DIFFICULTIES)
 	_section("RUN")
 	_check("Speedrun timer", "speedrun_timer")
