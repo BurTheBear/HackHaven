@@ -1,0 +1,48 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_85g3d"]
+[ext_resource type="PackedScene" path="res://scenes/level.tscn" id="2_choun"]
+[ext_resource type="Script" path="res://scripts/level.gd" id="3_ya4ey"]
+[ext_resource type="Shader" path="res://shaders/reveal.gdshader" id="4_eb6dy"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="5_trceg"]
+[ext_resource type="Script" path="res://scripts/player.gd" id="6_a8y0u"]
+[ext_resource type="PackedScene" path="res://scenes/pebble.tscn" id="7_jkv2x"]
+[ext_resource type="PackedScene" path="res://scenes/ui.tscn" id="8_jbj1t"]
+[ext_resource type="Script" path="res://scripts/ui.gd" id="9_muem4"]
+
+[sub_resource type="Environment" id="Environment_dp3eg"]
+background_mode = 1
+ambient_light_source = 2
+ambient_light_energy = 0.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_olg7q"]
+render_priority = 0
+shader = ExtResource("4_eb6dy")
+shader_parameter/echo_color = null
+shader_parameter/ping_speed = null
+shader_parameter/ring_width = null
+shader_parameter/afterglow = null
+shader_parameter/grid_scale = null
+shader_parameter/near_glow = null
+
+[node name="Main" type="Node3D" unique_id=711816942]
+script = ExtResource("1_85g3d")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1210391267]
+environment = SubResource("Environment_dp3eg")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=1156185810]
+transform = Transform3D(0.8660254, -0.38302222, 0.32139382, 0, 0.64278764, 0.76604444, -0.5, -0.66341394, 0.5566704, 0, 0, 0)
+shadow_enabled = true
+
+[node name="Level" type="Node3D" parent="." unique_id=1855566526 instance=ExtResource("2_choun")]
+script = ExtResource("3_ya4ey")
+reveal_material = SubResource("ShaderMaterial_olg7q")
+
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1340026887 groups=["player"] instance=ExtResource("5_trceg")]
+collision_layer = 2
+script = ExtResource("6_a8y0u")
+pebble_scene = ExtResource("7_jkv2x")
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=1123590180 instance=ExtResource("8_jbj1t")]
+script = ExtResource("9_muem4")
