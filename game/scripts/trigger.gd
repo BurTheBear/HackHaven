@@ -30,7 +30,7 @@ const DaggerModel := preload("res://scripts/combat_dagger_model.gd")
 @export var log_index := 0
 ## JOURNAL: the page's number; `subtitle` is its text.
 @export var journal_index := 0
-## HINT: UI prompt to request ("ping", "whisper", "chalk", "throw", "sneak", "run", "interact", "map").
+## HINT: UI prompt to request ("ping", "whisper", "throw", "sneak", "run", "interact", "map").
 @export var prompt_id := ""
 ## ZONE: name the UI shows on entry ("THE VEINS").
 @export var zone_name := ""
@@ -75,9 +75,19 @@ func _ready() -> void:
 	if build_visual:
 		_build_visual()
 	set_process(_visual != null or kind == Kind.VOICE_LOG)
+	if kind == Kind.DAGGER:
+		Settings.changed.connect(_sync_combat_pickup)
+		_sync_combat_pickup()
 	# Loaded mid-run (second level): the player may already stand in us.
 	if Game.state == Game.State.PLAYING:
 		_check_overlap()
+
+
+## Combat is optional: hide daggers and allow collection when enabled live.
+func _sync_combat_pickup() -> void:
+	visible = Game.damage_enabled() and not _used
+	if visible and _player_inside and Game.state == Game.State.PLAYING:
+		_activate()
 
 
 ## When the run starts, check whether the player is already inside.
@@ -119,6 +129,8 @@ func _on_body_exited(body: Node3D) -> void:
 
 ## Called when the player is inside this trigger during play.
 func _activate() -> void:
+	if kind == Kind.DAGGER and not Game.damage_enabled():
+		return
 	_send_level_event()
 
 	if kind == Kind.VOICE_LOG:
@@ -168,6 +180,8 @@ func _send_level_event() -> void:
 
 ## False when this trigger should do nothing right now.
 func _can_use_now() -> bool:
+	if kind == Kind.DAGGER and not Game.damage_enabled():
+		return false
 	if _used:
 		return false
 	# Full hands: leave the pile for later instead of wasting it.

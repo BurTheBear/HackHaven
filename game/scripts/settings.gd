@@ -11,7 +11,7 @@ const DIFFICULTIES := ["Easy", "Normal", "Hard"]
 const CROSSHAIRS := ["Dot", "Cross", "None"]
 
 # Gameplay
-var damage_enabled := true  ## Combat on. Off: Listeners catch instantly (old rules).
+var damage_enabled := false  ## Optional knives and health damage. Off: instant catch.
 var difficulty := 1  ## 0 Easy (assist_mode), 1 Normal, 2 Hard (hard_mode). Synced in apply().
 
 # Controls

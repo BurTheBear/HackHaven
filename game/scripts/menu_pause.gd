@@ -159,7 +159,6 @@ func _controls_text() -> String:
 	var parts2 := [
 		"Sneak %s" % Style.key_name("sneak"),
 		"Run %s" % Style.key_name("run"),
-		"Chalk %s" % Style.key_name("chalk"),
 		"Play log %s" % Style.key_name("interact"),
 		"Map %s" % Style.key_name("map"),
 	]

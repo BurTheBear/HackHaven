@@ -1,6 +1,6 @@
 extends Control
 ## Explored-only map (action "map"): the path you walked, where you pinged,
-## chalk marks and you. No level geometry. Pauses the tree while open.
+## and you. No level geometry. Pauses the tree while open.
 
 const Style = preload("res://scripts/ui_style.gd")
 const SAMPLE_EVERY := 0.5
@@ -178,27 +178,21 @@ func _draw() -> void:
 		return
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.88))
 	var player_pos := _player_flat()
-	var chalks: Array[Node] = get_tree().get_nodes_in_group("chalk_mark")
-	var scale_px := _map_scale(player_pos, chalks)
+	var scale_px := _map_scale(player_pos)
 	var centre := size * 0.5 + Vector2(0, 6)
 	_draw_pings(centre, player_pos, scale_px)
 	_draw_path(centre, player_pos, scale_px)
-	_draw_chalks(centre, player_pos, scale_px, chalks)
 	_draw_player_arrow(centre)
 	_draw_labels()
 
 
 ## Pixels per metre, chosen so everything seen so far fits on screen.
-func _map_scale(player_pos: Vector2, chalks: Array[Node]) -> float:
+func _map_scale(player_pos: Vector2) -> float:
 	# Collect every point that should fit.
 	var pts: Array[Vector2] = _points.duplicate()
 	for pg in _pings:
 		var pv: Vector2 = pg["pos"]
 		pts.append(pv)
-	for c in chalks:
-		var c3 := c as Node3D
-		if c3 != null:
-			pts.append(Vector2(c3.global_position.x, c3.global_position.z))
 	# Half-width and half-height (metres) around the player.
 	var half_x := MARGIN_M
 	var half_y := MARGIN_M
@@ -243,28 +237,6 @@ func _draw_path(centre: Vector2, player_pos: Vector2, scale_px: float) -> void:
 	draw_polyline(line, Color(Style.CYAN, 0.75), 1.5, true)
 
 
-## Chalk marks as dots in their own colour, with their number.
-func _draw_chalks(centre: Vector2, player_pos: Vector2, scale_px: float, chalks: Array[Node]) -> void:
-	var font: Font = ThemeDB.fallback_font
-	for c in chalks:
-		var c3 := c as Node3D
-		if c3 == null:
-			continue
-		var flat := Vector2(c3.global_position.x, c3.global_position.z)
-		var cp := centre + (flat - player_pos) * scale_px
-		var cc: Color = Style.GOLD
-		if c3.has_meta("color"):
-			var mc: Variant = c3.get_meta("color")
-			if mc is Color:
-				cc = mc
-				cc.a = 1.0
-				cc = cc.lightened(0.35)
-		draw_circle(cp, 5.0, cc)
-		if c3.has_meta("number"):
-			var num: String = str(c3.get_meta("number"))
-			draw_string(font, cp + Vector2(8, 5), num, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, cc)
-
-
 ## White arrow for the player (yaw 0 faces -Z, i.e. up the map).
 func _draw_player_arrow(centre: Vector2) -> void:
 	var yaw: float = player.rotation.y
@@ -293,6 +265,4 @@ func _draw_labels() -> void:
 	draw_string(font, Vector2(lx + 30, ly + 29), "Ping", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Style.TEXT)
 	draw_arc(Vector2(lx + 11, ly + 48), 5.0, 0.0, TAU, 20, Style.GOLD, 1.5, true)
 	draw_string(font, Vector2(lx + 30, ly + 53), "Pebble", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Style.TEXT)
-	draw_circle(Vector2(lx + 110, ly), 5.0, Style.GOLD)
-	draw_string(font, Vector2(lx + 122, ly + 5), "Chalk", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Style.TEXT)
 	draw_string(font, Vector2(0, sz.y - 36), "[M] close", HORIZONTAL_ALIGNMENT_CENTER, sz.x, 18, Style.MUTED)
