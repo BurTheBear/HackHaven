@@ -17,5 +17,5 @@ with tempfile.TemporaryDirectory(prefix='echo-checks-') as directory:
     config = project / 'project.godot'
     config.write_text(config.read_text().replace('config/name="ECHO"', 'config/name="ECHO Codex Verification"'))
     subprocess.run([godot, '--headless', '--editor', '--path', str(project), '--import'], check=True)
-    for script in ('gameplay_checks.gd', 'scene_smoke.gd'):
+    for script in ('gameplay_checks.gd', 'scene_smoke.gd', 'jumpscare_checks.gd'):
         subprocess.run([godot, '--headless', '--path', str(project), '--script', 'res://tests/' + script], check=True)
