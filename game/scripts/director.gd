@@ -577,11 +577,8 @@ func _on_caught() -> void:
 		# Gentler: no echo in your face and a quiet sting; the UI just fades.
 		Sfx.play("sting", -14.0)
 		return
-	Sfx.play("sting", -2.0)
-	# Jump scare: light up the thing that got you, right in your face.
-	Echo.emit_ping(Game.catcher_position + Vector3.UP * 1.2, 5.0, false)
-	if ui and not Settings.no_flash:
-		ui.call("flash_red")
+	# The UI plays the Blender attack and its synchronized sound mix.
+
 
 
 ## Reaching a checkpoint resets the menace gauge.

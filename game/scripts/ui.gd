@@ -739,19 +739,28 @@ func play_opening_text() -> void:
 	_opening.modulate.a = 0.0
 
 
-## Caught, part 1: (flash) → black → "The Hollow heard you." + a tip.
+## Caught, part 1: Blender attack (or gentle fade) → black → catch text and tip.
 ## main.gd respawns the player when this returns, then calls caught_in().
 func caught_out() -> void:
 	_caught_busy = true
-	if Settings.skip_jumpscare:
-		# The director skips its flash in this mode: a gentle dark fade instead.
+	if not Settings.skip_jumpscare:
+		var scare = preload("res://scripts/jumpscare.gd").new()
+		scare.name = "CaughtJumpscare"
+		root.add_child(scare)
+		await scare.finished
+		# Cover the world before removing the last, black animation frame.
+		if _black_tween != null:
+			_black_tween.kill()
+		_black.color.a = 1.0
+		scare.queue_free()
+	else:
 		_pulse_edge(Color(0.0, 0.0, 0.0), 1.0, 1.6)
-	await get_tree().create_timer(0.55).timeout
-	if _black_tween != null:
-		_black_tween.kill()
-	_black_tween = create_tween()
-	_black_tween.tween_property(_black, "color:a", 1.0, 0.55)
-	await _black_tween.finished
+		await get_tree().create_timer(0.55).timeout
+		if _black_tween != null:
+			_black_tween.kill()
+		_black_tween = create_tween()
+		_black_tween.tween_property(_black, "color:a", 1.0, 0.55)
+		await _black_tween.finished
 	_tip.text = _pick_tip()
 	_tip.modulate.a = 0.0
 	_center.add_theme_color_override("font_color", Color(1.0, 0.82, 0.84))
