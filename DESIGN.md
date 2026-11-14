@@ -50,19 +50,19 @@ Each loop takes roughly 10 to 30 seconds.
 | Look | Mouse (click the game to lock the mouse) |
 | Ping | Left click or Space |
 | Throw pebble | Right click or E |
-| Pause | Esc |
+| Pause | Esc or P (the game also pauses whenever the mouse unlocks, see section 14) |
 
 ## 8. Mechanics
 
 ### 8.1 Ping
 - Sends a ring of light outward from the player at **18 m/s**, up to a max radius of **22 m**.
 - Surfaces glow brightly as the ring passes, then keep a fading **afterglow for 2 s**.
-- **Cooldown: 1 s.** Up to 4 pings can be visible at once; a new one replaces the oldest.
-- Every ping is **loud**: any Listener within **25 m** hears it and goes to investigate.
+- **Cooldown: 1 s.** A ping lives about 3.2 s (1.2 s for the ring to reach 22 m, plus 2 s of afterglow), so at most 4 of your pings are ever alive at once. Your pings and pebble pings have **separate slots** (section 12), so a pebble never wipes out your own ping mid-afterglow.
+- Every ping is **loud**. One simple rule: **if the ring touches a Listener, it hears you.** That's 22 m for your ping and 10 m for a pebble's. The ring also outlines it in red at that moment, so you always see what heard you. Nothing out of sight is ever alerted.
 
 ### 8.2 Afterglow and memory
 - Once the afterglow fades, the player is moving from memory.
-- Assist: a very faint outline of the floor within 1.5 m of the player at all times, so nobody gets completely lost.
+- Assist: **footsteps.** Each step lights the floor within 1.5 m for half a second. Footsteps are quiet, so Listeners never hear them. This keeps "sound is sight" true and stops anyone getting completely lost.
 
 ### 8.3 Pebbles
 - Start with **3**, carry up to **5**. Pebble piles glow gold and are visible without pinging.
@@ -72,8 +72,12 @@ Each loop takes roughly 10 to 30 seconds.
 
 ### 8.4 Listeners (monsters)
 - Invisible except when a ping wave passes over them (red outline instead of cyan).
-- **States:** Patrol → Investigate (walks to the last sound it heard) → Search (looks around for **4 s**) → back to Patrol.
-- Patrol speed **1.5 m/s**, investigate speed **3.2 m/s**. The player walks at **3.5 m/s**, so you can always escape if you move right away.
+- **States:** Patrol → Alert → Investigate → Search → back to Patrol.
+  - **Alert (0.75 s):** stops, turns toward the sound and whispers ("I hear you..."). It doesn't move yet.
+  - **Investigate:** walks to **where the sound came from**, not to the player. If it hears a newer sound on the way, it heads there instead (this is what makes pebble lures work).
+  - **Search (4 s):** looks around the spot, then goes back to Patrol.
+  - **Sleep (Zone 4 only):** ignores every sound except a ping that starts within **10 m** of it. Then it shrieks and goes to Alert.
+- Patrol speed **1.5 m/s**, investigate speed **3.2 m/s**. The player walks at **3.5 m/s**. A Listener chases the sound, not you, and the Alert pause gives you a head start of about 2.6 m. So you can always escape if you move away right after pinging. Standing still on your own ping is what gets you caught.
 - Getting within **1.0 m** of the player = caught: a short sting sound, a red flash, then respawn at the last checkpoint.
 - They breathe and shuffle using 3D audio, so players can track them by ear.
 
@@ -102,12 +106,15 @@ Starting values. Change them during playtests.
 | Ring width | 1.2 m |
 | Afterglow duration | 2.0 s |
 | Ping cooldown | 1.0 s |
-| Listener hearing radius | 25 m |
+| Listener hearing radius | same as the ping's radius (22 m / 10 m for pebbles) |
+| Listener alert pause | 0.75 s |
+| Sleeping Listener wake radius | 10 m |
 | Listener patrol / investigate speed | 1.5 / 3.2 m/s |
 | Listener catch distance | 1.0 m |
 | Pebble throw speed | 9 m/s |
 | Pebble ping radius | 10 m |
 | Starting / max pebbles | 3 / 5 |
+| Footstep floor glow | 1.5 m, 0.5 s |
 
 ## 10. Level design: the Hollow
 Target length: **5 to 8 minutes** for a first-time player.
@@ -133,7 +140,7 @@ Target length: **5 to 8 minutes** for a first-time player.
 
 ### Zone 4: The Long Climb (finale, about 2 min)
 - A rising switchback path toward the faint sound of wind from the exit.
-- Two Listeners: one patrolling, and one sleeping that wakes on any ping within 10 m.
+- Two Listeners: one patrolling, and one asleep (Sleep state, section 8.4). It only wakes if a ping starts within 10 m of it, so players have to cross its area without pinging, or throw a pebble past it.
 - Last 20 m: a straight run. Daylight from the exit is visible, which tempts players to rush.
 - Reaching the exit triggers the ending.
 
@@ -154,9 +161,10 @@ Target length: **5 to 8 minutes** for a first-time player.
 ## 12. The reveal shader (spec)
 - One **unshaded** spatial ShaderMaterial, applied by a script as the material override on every level mesh (every MeshInstance3D under the Level node, or everything in the group `revealable`).
 - **Global shader parameters** (Project Settings → Shader Globals), updated by the Echo system every frame:
-  - `ping_0` to `ping_3` (vec4): xyz = ping origin, w = age in seconds (negative = inactive)
-  - `ping_radius_0` to `ping_radius_3` (float): max radius of each ping (22 for player pings, 10 for pebbles)
-  - `player_pos` (vec3): for the faint floor outline near the player
+  - `ping_0` to `ping_7` (vec4): xyz = ping origin, w = age in seconds (negative = inactive)
+  - `ping_radius_0` to `ping_radius_7` (float): max radius of each ping (22 for player pings, 10 for pebbles)
+  - **Slots 0–3 are for player pings, slots 4–7 for pebble pings.** A new ping replaces the oldest one in its own group only.
+  - `player_pos` (vec3) and `step_glow` (float, 0–1): for the footstep floor glow. The Echo system sets `step_glow` to 1 on each footstep and fades it to 0 over 0.5 s. Only light surfaces facing up (world normal y > 0.7) within 1.5 m of `player_pos`.
 - **Per pixel:**
   - Get the world position in the vertex shader (model matrix × vertex) and pass it to the fragment shader.
   - For each active ping: ring radius = age × speed, capped at that ping's max radius. Brightness = a soft band around the ring, plus an afterglow inside the ring that fades with age.
@@ -174,11 +182,11 @@ Audio is half the game, and all of it is made with **ElevenLabs** for the sponso
 - **Mix:** pings, footsteps and pebbles go through a "Cave" bus with reverb; voice logs stay dry and clear; ambience gets quieter while a log plays. The ping is the loudest sound in the game.
 
 ## 14. UI and screens
-- **Title:** a black screen where a ping ripples out every few seconds and reveals the word ECHO. "Click to begin." That click also locks the mouse, which browsers require.
+- **Title:** a black screen where a ping ripples out every few seconds and reveals the word ECHO. "Click to begin." Browsers only allow locking the mouse and starting audio after a click, so this click does both. The title whisper stays silent until then.
 - **HUD:** pebble count as small gold dots (bottom left) and a cooldown ring around the crosshair. Nothing else.
 - **Tutorial prompts:** small text that fades in once and fades out after the player does it.
 - **Caught:** red flash, "The Hollow heard you.", respawn.
-- **Pause:** Esc → Resume / Restart / Quit to title.
+- **Pause:** Resume / Restart / Quit to title. In a browser, Esc always unlocks the mouse first and the game may never see the key press. So **the game pauses whenever the mouse gets unlocked** (Esc, alt-tab, clicking outside), not only on the `pause` action. Check `Input.mouse_mode` every frame. Resume needs a click, because browsers only re-lock the mouse on a click.
 - **End screen:** "You found your way back." plus time taken and times caught, and a Play again button.
 
 ## 15. Technical architecture (Godot)
@@ -189,7 +197,7 @@ Audio is half the game, and all of it is made with **ElevenLabs** for the sponso
 - Input map: `move_forward`, `move_back`, `move_left`, `move_right`, `ping`, `throw`, `pause`.
 
 **Autoloads (singletons)**
-- `Echo` (`scripts/echo_system.gd`): `emit_ping(position, max_radius, loud)` updates the shader globals and emits the signal `ping_emitted(position, max_radius, loud)`. Listeners connect to that signal.
+- `Echo` (`scripts/echo_system.gd`): `emit_ping(position, max_radius, loud, is_pebble)` puts the ping in the right slot group, updates the shader globals and emits the signal `ping_emitted(position, max_radius, loud)`. Listeners connect to that signal and react when the ring reaches them: when the ping's age × 18 m/s ≥ their distance from it, if that distance is within `max_radius`. `step()` sets the footstep glow.
 - `Game` (`scripts/game_state.gd`): game state (Title, Playing, Caught, Won), current checkpoint, pebble count, times caught and the run timer. Signals: `player_caught`, `checkpoint_reached`, `game_won`.
 
 **Scene tree**
