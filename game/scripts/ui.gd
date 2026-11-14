@@ -13,6 +13,9 @@ var _message_time := 0.0
 
 
 func _ready() -> void:
+	# Keeps running while the tree is paused, so it can show the pause text
+	# and take the click that resumes.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	Game.state_changed.connect(_on_state_changed)
 	Game.pebbles_changed.connect(_on_pebbles_changed)
 	Game.subtitle.connect(_on_subtitle)
@@ -26,7 +29,12 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var player = get_tree().get_first_node_in_group("player")
 	crosshair.modulate.a = 0.3 if player and player.ping_cooldown > 0.0 else 1.0
-	paused.visible = Game.state == Game.State.PLAYING and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
+	# Pause whenever the mouse is unlocked while playing. In a browser, Esc
+	# unlocks the mouse without the game ever seeing the key press.
+	var should_pause := Game.state == Game.State.PLAYING and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
+	if get_tree().paused != should_pause:
+		get_tree().paused = should_pause
+	paused.visible = should_pause
 	_subtitle_time -= delta
 	if _subtitle_time <= 0.0:
 		subtitle_label.text = ""
@@ -34,6 +42,12 @@ func _process(delta: float) -> void:
 		_message_time -= delta
 		if _message_time <= 0.0:
 			message.text = ""
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if get_tree().paused and event is InputEventMouseButton and event.is_pressed():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		get_viewport().set_input_as_handled()
 
 
 func _on_state_changed(state: int) -> void:

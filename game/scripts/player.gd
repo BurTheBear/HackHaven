@@ -7,6 +7,7 @@ const MOUSE_SENS := 0.0025
 const PING_COOLDOWN := 1.0
 const PING_RADIUS := 22.0
 const THROW_SPEED := 9.0
+const FALL_LIMIT := -20.0
 
 @export var pebble_scene: PackedScene
 
@@ -35,18 +36,24 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	Echo.set_player_position(global_position)
+	# Don't simulate on the title screen or while caught: the player used to
+	# fall and slide around before the game even started.
+	if Game.state != Game.State.PLAYING:
+		velocity = Vector3.ZERO
+		return
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
-	var input := Vector2.ZERO
-	if Game.state == Game.State.PLAYING:
-		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := (transform.basis * Vector3(input.x, 0.0, input.y)).normalized()
 	velocity.x = move_toward(velocity.x, dir.x * SPEED, ACCEL * delta)
 	velocity.z = move_toward(velocity.z, dir.z * SPEED, ACCEL * delta)
 	move_and_slide()
 	ping_cooldown = maxf(ping_cooldown - delta, 0.0)
-	Echo.set_player_position(global_position)
 	_footsteps(delta, input.length() > 0.1 and is_on_floor())
+	# Safety net: fell out of the level.
+	if global_position.y < FALL_LIMIT:
+		respawn(Game.checkpoint_position)
 
 
 func try_ping() -> void:
@@ -64,7 +71,14 @@ func throw_pebble() -> void:
 	var pebble := pebble_scene.instantiate() as RigidBody3D
 	get_parent().add_child(pebble)
 	var forward := -camera.global_basis.z
-	pebble.global_position = camera.global_position + forward * 0.6
+	var from := camera.global_position
+	var spawn := from + forward * 0.6
+	# Facing a wall: spawn in front of it, not inside it.
+	var hit := get_world_3d().direct_space_state.intersect_ray(
+		PhysicsRayQueryParameters3D.create(from, spawn, 1))
+	if hit:
+		spawn = (hit["position"] as Vector3) - forward * 0.15
+	pebble.global_position = spawn
 	pebble.linear_velocity = forward * THROW_SPEED + Vector3.UP * 2.0
 
 
@@ -80,5 +94,6 @@ func _footsteps(delta: float, moving: bool) -> void:
 	_step_timer -= delta
 	if _step_timer <= 0.0:
 		_step_timer = 0.45
+		Echo.step()
 		if step_sound.stream:
 			step_sound.play()

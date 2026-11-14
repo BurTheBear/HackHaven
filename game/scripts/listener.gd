@@ -1,15 +1,20 @@
 extends CharacterBody3D
 ## Listener: a blind monster that hunts by sound.
-## Patrols between its start point and start + patrol_offset, walks to any loud
-## ping within hearing_radius, searches for a while, then goes back to patrolling.
+## Hears a ping when its ring reaches it (so anything that hears you was also
+## outlined by that ping), pauses in Alert, then walks to where the sound came
+## from, searches for a while, and goes back to patrolling.
 ## It moves in straight lines (no navmesh), so keep rooms open.
 
-enum Mode { PATROL, INVESTIGATE, SEARCH }
+enum Mode { PATROL, ALERT, INVESTIGATE, SEARCH }
+
+const SOUND_SPEED := 18.0  ## Same as the ping ring speed in the shader.
 
 @export var patrol_offset := Vector3(0, 0, 6)
 @export var patrol_speed := 1.5
 @export var investigate_speed := 3.2
-@export var hearing_radius := 25.0
+## Upper limit; a ping is only heard inside its own radius (22 m, pebbles 10 m).
+@export var hearing_radius := 22.0
+@export var alert_time := 0.75
 @export var catch_distance := 1.0
 @export var search_time := 4.0
 @export var asleep := false
@@ -23,32 +28,54 @@ var _home := Vector3.ZERO
 var _to_far := true
 var _target := Vector3.ZERO
 var _search := 0.0
+var _alert := 0.0
+var _hear_delay := -1.0
+var _heard_origin := Vector3.ZERO
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
 func _ready() -> void:
 	_home = global_position
 	Echo.ping_emitted.connect(_on_ping)
+	Game.player_caught.connect(_on_player_caught)
 
 
-func _on_ping(origin: Vector3, _max_radius: float, loud: bool) -> void:
+func _on_ping(origin: Vector3, max_radius: float, loud: bool) -> void:
 	if not loud:
 		return
 	var d := global_position.distance_to(origin)
-	if asleep:
-		if d > wake_radius:
-			return
-		asleep = false
-	if d > hearing_radius:
+	if asleep and d > wake_radius:
 		return
-	mode = Mode.INVESTIGATE
-	_target = Vector3(origin.x, global_position.y, origin.z)
+	if d > minf(max_radius, hearing_radius):
+		return
+	# React when the ring actually reaches us, not instantly.
+	_heard_origin = origin
+	_hear_delay = d / SOUND_SPEED
+
+
+func _hear() -> void:
+	_target = Vector3(_heard_origin.x, global_position.y, _heard_origin.z)
+	asleep = false
+	# Already hunting: just retarget (no new pause, or ping spam would freeze it).
+	if mode == Mode.ALERT or mode == Mode.INVESTIGATE:
+		return
+	mode = Mode.ALERT
+	_alert = alert_time
 	if not hear_lines.is_empty():
 		voice.stream = hear_lines.pick_random()
 		voice.play()
 
 
+func _on_player_caught() -> void:
+	mode = Mode.PATROL
+	_hear_delay = -1.0
+
+
 func _physics_process(delta: float) -> void:
+	if _hear_delay >= 0.0:
+		_hear_delay -= delta
+		if _hear_delay < 0.0:
+			_hear()
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
 	var dest := global_position
@@ -60,6 +87,11 @@ func _physics_process(delta: float) -> void:
 				speed = patrol_speed
 				if _flat_dist(dest) < 0.5:
 					_to_far = not _to_far
+		Mode.ALERT:
+			_face(_target)
+			_alert -= delta
+			if _alert <= 0.0:
+				mode = Mode.INVESTIGATE
 		Mode.INVESTIGATE:
 			dest = _target
 			speed = investigate_speed
@@ -76,11 +108,18 @@ func _physics_process(delta: float) -> void:
 	var move := Vector3.ZERO
 	if to.length() > 0.1:
 		move = to.normalized() * speed
-		look_at(global_position + to, Vector3.UP)
+		_face(dest)
 	velocity.x = move.x
 	velocity.z = move.z
 	move_and_slide()
 	_check_catch()
+
+
+func _face(p: Vector3) -> void:
+	var to := p - global_position
+	to.y = 0.0
+	if to.length() > 0.1:
+		look_at(global_position + to, Vector3.UP)
 
 
 func _flat_dist(p: Vector3) -> float:
