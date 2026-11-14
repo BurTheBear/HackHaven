@@ -6,6 +6,9 @@ extends RefCounted
 ## origin, facing -Z. Used by listener.gd and by the director's phantoms.
 
 const RED := Color(1.0, 0.23, 0.31)
+const MODEL_PATH := "res://assets/models/listener.glb"
+const MODEL_SCALE := 0.72
+const AnimDriver := preload("res://scripts/ai_listener_anim.gd")
 
 
 ## Red reveal material. Its afterglow is longer than the cave's, so a
@@ -20,8 +23,52 @@ static func make_material() -> ShaderMaterial:
 	return mat
 
 
-## Builds the body under `root` and returns the head pivot (rotate it to look around).
+## Builds the body under `root` and returns the head pivot (rotate it to look
+## around). Uses the Listener model (listener.glb, red reveal material, animated
+## by the parent Listener); falls back to the primitive body if it won't load.
 static func build(root: Node3D, mat: Material) -> Node3D:
+	var model := _build_model(root, mat)
+	if model != null:
+		return model
+	return _build_primitive(root, mat)
+
+
+static func _build_model(root: Node3D, mat: Material) -> Node3D:
+	if not ResourceLoader.exists(MODEL_PATH):
+		return null
+	var packed := load(MODEL_PATH) as PackedScene
+	if packed == null:
+		return null
+	var inst := packed.instantiate() as Node3D
+	if inst == null:
+		return null
+	# About 3.36 m tall at 1.0; 0.72 gives ~2.4 m. The model faces +Z.
+	inst.scale = Vector3.ONE * MODEL_SCALE
+	inst.rotation.y = PI
+	root.add_child(inst)
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var part := node as MeshInstance3D
+		part.material_override = mat
+		part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		part.extra_cull_margin = 1.0
+	var player := inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if player != null:
+		var driver := AnimDriver.new()
+		driver.name = "AnimDriver"
+		root.add_child(driver)
+		var host: Node = root.get_parent()
+		if host == null:
+			host = root
+		driver.setup(player, host)
+	# The model animates its own head; this pivot is only here for the callers.
+	var head := Node3D.new()
+	head.name = "Head"
+	root.add_child(head)
+	head.position = Vector3(0.0, 2.2, -0.3)
+	return head
+
+
+static func _build_primitive(root: Node3D, mat: Material) -> Node3D:
 	var lean := deg_to_rad(-52.0)
 	var spine := Vector3(0.0, cos(lean), sin(lean))  # torso axis, leaning forward
 	var back := Vector3(0.0, -sin(lean), cos(lean))  # out of the hunched back

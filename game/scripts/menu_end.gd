@@ -57,43 +57,60 @@ func show_end(can_go_deeper: bool, total_logs: int, total_crystals: int) -> void
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title.modulate.a = 0.0
 	_column.add_child(_title)
-	_gap(14)
+	var twist := Style.label("Mara never left. She just stopped needing her eyes.", 17, Color(0.75, 0.82, 0.9), HORIZONTAL_ALIGNMENT_LEFT)
+	twist.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_column.add_child(twist)
+	_gap(10)
 
 	var pings := Game.get_stat("pings")
 	var caught := Game.times_caught
+	var journals := Game.journal_found.size()
+	var journal_total := Game.journal_total()
 	_stat("Time", Style.format_time(Game.run_time, true))
 	_stat("Caught", str(caught))
 	_stat("Pings", str(pings))
 	_stat("Pebbles thrown", str(Game.get_stat("pebbles_thrown")))
+	_stat("Near misses", str(Game.get_stat("near_misses")))
+	_stat("Hides", str(Game.get_stat("hides")))
 	if total_crystals > 0:
 		_stat("Echo crystals", "%d / %d" % [Game.crystals_found, total_crystals])
 	_stat("Mara's logs", "%d / %d" % [Game.logs_found.size(), total_logs])
+	_stat("Journal pages", "%d / %d" % [journals, journal_total])
+	var secrets := Game.logs_found.size() + journals + Game.crystals_found
+	var secrets_total := total_logs + journal_total + total_crystals
+	var full := secrets_total > 0 and secrets >= secrets_total
+	_stat("Secrets", "%d / %d%s" % [secrets, secrets_total, "    100%" if full else ""])
 	if Game.best_time > 0.0:
 		_stat("Best time", Style.format_time(Game.best_time, true) + ("    NEW BEST" if Game.new_best else ""))
-	_gap(12)
+	if Game.challenge != "":
+		_stat("Challenge", Game.challenge_name())
+	_gap(10)
 
-	var rank := "Survivor"
+	var rank := Game.compute_rank()
+	var best := Game.record_rank(rank)
 	var why := "You made it. That's what matters."
-	if caught == 0:
-		rank = "Ghost"
-		why = "Never caught. They never knew you were there."
-	elif pings < 15:
-		rank = "Echo"
-		why = "Fewer than 15 pings. You listened more than you called."
-	elif pings >= 50:
-		rank = "Loud"
-		why = "The whole Hollow knows your voice now."
-	var rank_label := Style.label("RANK   " + rank.to_upper(), 34, Style.GOLD, HORIZONTAL_ALIGNMENT_LEFT)
+	match rank:
+		"GHOST":
+			why = "Never caught, barely a sound. They never knew you were there."
+		"SILENT":
+			why = "Never caught. The dark never got its hands on you."
+		"ECHO":
+			why = "Three catches or fewer. You listened more than you ran."
+		"LOUD":
+			why = "The whole Hollow knows your voice now."
+	var rank_label := Style.label("RANK   " + rank, 34, Style.GOLD, HORIZONTAL_ALIGNMENT_LEFT)
 	rank_label.add_theme_font_override("font", Style.spaced_font())
 	_add_reveal(rank_label)
 	var why_label := Style.label(why, 17, Style.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	_add_reveal(why_label)
-	_gap(12)
+	_add_reveal(Style.label("Best rank: %s    ·    Replay for a better rank" % best, 16, Style.CYAN, HORIZONTAL_ALIGNMENT_LEFT))
+	_gap(10)
 
 	_add_reveal(Style.label("CHALLENGES", 16, Style.CYAN, HORIZONTAL_ALIGNMENT_LEFT))
 	_challenge("Ghost: never caught", caught == 0)
 	_challenge("Quiet: under 10 pings", pings < 10)
 	_challenge("Steady: never ran", Game.get_stat("ran") == 0)
+	_challenge("Collector: 100% secrets", full)
 	_challenge("Archivist: every one of Mara's logs", Game.logs_found.size() >= total_logs)
 	if total_crystals > 0:
 		_challenge("Resonant: every echo crystal", Game.crystals_found >= total_crystals)

@@ -23,6 +23,8 @@ var _tagline: Label
 var _items: Array[Button] = []
 var _continue: Button
 var _hard: Button
+var _chal: Button
+const CHALLENGES := ["", "no_ping", "one_pebble", "darkness"]
 var _quit: Button
 var _best: Label
 var _ring_age := 99.0
@@ -69,6 +71,15 @@ func _ready() -> void:
 	_tagline.offset_bottom = 170.0
 	add_child(_tagline)
 
+	var hook := Style.label("What if the only way to see was to make noise?", 20, Color(0.8, 0.9, 0.95))
+	hook.anchor_left = 0.0
+	hook.anchor_right = 1.0
+	hook.anchor_top = 0.12
+	hook.anchor_bottom = 0.12
+	hook.offset_top = 174.0
+	hook.offset_bottom = 206.0
+	add_child(hook)
+
 	var list := VBoxContainer.new()
 	list.alignment = BoxContainer.ALIGNMENT_CENTER
 	list.add_theme_constant_override("separation", 6)
@@ -79,7 +90,7 @@ func _ready() -> void:
 	list.offset_left = -220.0
 	list.offset_right = 220.0
 	list.offset_top = 0.0
-	list.offset_bottom = 330.0
+	list.offset_bottom = 410.0
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(list)
 
@@ -89,6 +100,8 @@ func _ready() -> void:
 	_add_item(list, "CREDITS", func(): credits_pressed.emit())
 	_hard = _add_item(list, "", _toggle_hard)
 	_hard.add_theme_font_size_override("font_size", 20)
+	_chal = _add_item(list, "", _cycle_challenge)
+	_chal.add_theme_font_size_override("font_size", 20)
 	_quit = _add_item(list, "QUIT", func(): quit_pressed.emit())
 	_quit.visible = not OS.has_feature("web")
 	begin.text = "BEGIN"
@@ -152,6 +165,11 @@ func _add_item(list: VBoxContainer, text: String, action: Callable) -> Button:
 func refresh() -> void:
 	_continue.visible = Game.has_save()
 	_hard.text = "HARD MODE: %s" % ("ON" if Settings.hard_mode else "OFF")
+	var unlocked: bool = Game.best_time >= 0.0
+	_chal.visible = unlocked
+	if not unlocked:
+		Game.challenge = ""
+	_chal.text = "CHALLENGE: %s" % Game.challenge_name().to_upper()
 	if Game.best_time > 0.0:
 		_best.text = "Best time  %s" % Style.format_time(Game.best_time)
 	else:
@@ -207,6 +225,12 @@ func focus_first() -> void:
 func _toggle_hard() -> void:
 	Settings.hard_mode = not Settings.hard_mode
 	Settings.save()
+	refresh()
+
+
+func _cycle_challenge() -> void:
+	var i := CHALLENGES.find(Game.challenge)
+	Game.challenge = CHALLENGES[(i + 1) % CHALLENGES.size()]
 	refresh()
 
 

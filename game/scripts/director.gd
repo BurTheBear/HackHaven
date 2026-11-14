@@ -53,6 +53,12 @@ var _heart_slow: AudioStreamPlayer
 var _phantom: Node3D
 var _ambience: Node
 var _nav: Node
+var _chase := false
+var _chase_music: AudioStreamPlayer
+var _heart_spike: AudioStreamPlayer
+var _spike := 0.0
+var _music_tween: Tween
+var _spike_timer := 0.0
 
 
 func setup(p: Node3D, u: Node) -> void:
@@ -67,6 +73,12 @@ func _ready() -> void:
 	add_child(_heart)
 	_heart_slow = AudioStreamPlayer.new()
 	add_child(_heart_slow)
+	_heart_spike = AudioStreamPlayer.new()
+	add_child(_heart_spike)
+	_chase_music = AudioStreamPlayer.new()
+	_chase_music.volume_db = -6.0
+	_chase_music.finished.connect(_on_chase_music_finished)
+	add_child(_chase_music)
 
 	# Phantom: the same creepy silhouette as a real Listener, shown in an echo.
 	_phantom = Node3D.new()
@@ -88,6 +100,7 @@ func _ready() -> void:
 	Game.player_caught.connect(_on_caught)
 	Game.checkpoint_reached.connect(_on_checkpoint)
 	Game.game_won.connect(_on_won)
+	Game.level_event.connect(_on_level_event)
 
 
 func _process(delta: float) -> void:
@@ -107,7 +120,9 @@ func _process(delta: float) -> void:
 			d *= 1.6  # A sleeping one is less of a threat.
 		nearest = minf(nearest, d)
 	var target := clampf(1.0 - (nearest - DREAD_NEAR) / (DREAD_FAR - DREAD_NEAR), 0.0, 1.0)
-	dread = move_toward(dread, target, delta * 1.5)
+	if _chase:
+		target = 1.0  # a chase maxes the dread
+	dread = move_toward(dread, target, delta * (3.0 if _chase else 1.5))
 
 	# Near miss: dread spiked, then the thing moved off without catching you.
 	_peak = maxf(_peak, dread)
@@ -116,7 +131,7 @@ func _process(delta: float) -> void:
 		_after_beat = AFTER_BEAT
 
 	# Menace gauge: too long under high pressure, so ease off for a moment.
-	if dread > 0.5:
+	if dread > 0.5 and not _chase:
 		_menace += delta * dread
 	else:
 		_menace = maxf(_menace - delta * 0.5, 0.0)
@@ -156,6 +171,16 @@ func _process(delta: float) -> void:
 
 
 func _apply(delta: float) -> void:
+	# Near miss: a few sharp, fast heartbeats on top of everything.
+	if _spike > 0.0 and Game.state == Game.State.PLAYING:
+		_spike -= delta
+		_spike_timer -= delta
+		if _spike_timer <= 0.0:
+			_spike_timer = 0.3
+			_heart_spike.stream = Sfx.stream("heartbeat")
+			_heart_spike.volume_db = -1.0
+			_heart_spike.pitch_scale = 1.15
+			_heart_spike.play()
 	if dread > 0.08:
 		_beat_timer -= delta
 		if _beat_timer <= 0.0:
@@ -394,7 +419,42 @@ func _in_view(cam: Camera3D, pos: Vector3) -> bool:
 	return false
 
 
+func _on_level_event(event_name: String) -> void:
+	match event_name:
+		"near_miss":
+			_spike = 2.4
+			_spike_timer = 0.0
+			_after_beat = AFTER_BEAT
+			_peak = 0.0
+		"chase_start":
+			_chase = true
+			if _music_tween:
+				_music_tween.kill()
+			_menace = 0.0
+			_chase_music.stream = Sfx.stream("chase_music")
+			_chase_music.volume_db = -6.0
+			_chase_music.play()
+		"chase_end":
+			_stop_chase()
+
+
+func _on_chase_music_finished() -> void:
+	if _chase and Game.state == Game.State.PLAYING:
+		_chase_music.play()  # loop
+
+
+func _stop_chase() -> void:
+	if not _chase:
+		return
+	_chase = false
+	_music_tween = create_tween()
+	_music_tween.tween_property(_chase_music, "volume_db", -40.0, 1.5)
+	_music_tween.tween_callback(_chase_music.stop)
+
+
 func _on_caught() -> void:
+	_stop_chase()
+	_spike = 0.0
 	_menace = 0.0
 	_after_beat = 0.0
 	_peak = 0.0
@@ -414,6 +474,8 @@ func _on_checkpoint() -> void:
 
 
 func _on_won() -> void:
+	_stop_chase()
+	_spike = 0.0
 	_heart.stop()
 	_heart_slow.stop()
 	_after_beat = 0.0
