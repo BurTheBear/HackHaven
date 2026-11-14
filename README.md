@@ -14,7 +14,3 @@ Our Hack Club Haven game jam entry: **ECHO**, a first-person stealth-horror game
 - Prototype scenes  so Godot can open them.
 
 
-
-## Credits
-- Sound: list every sound pack or recorded source here
-
