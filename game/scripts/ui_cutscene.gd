@@ -348,7 +348,7 @@ func _prepare_ui_for_run() -> void:
 	_subtitle.visible = true
 
 
-# ------------------------------------------------------------------ 1. Intro
+# ------------------------------------------------------------------ 1. Intro (~20 s)
 
 func play_intro() -> void:
 	if playing or _player == null:
@@ -358,7 +358,7 @@ func play_intro() -> void:
 	var floor_pos: Vector3 = _player.global_position
 	var yaw: float = _player.global_rotation.y
 	var eye := floor_pos + Vector3(0.0, EYE_HEIGHT, 0.0)
-	var start := floor_pos + Vector3(0.0, 6.0, 0.0)
+	var start := floor_pos + Vector3(0.0, 7.0, 0.0)
 	var marker := _marker("IntroCamera")
 	if marker != null:
 		start = marker.global_position
@@ -370,16 +370,28 @@ func play_intro() -> void:
 	cam_fov = 70.0
 	overlay_alpha = 1.0
 	_bars(true, 0.8)
+	_fade(0.0, 1.5)
 
-	await _wait(0.8)
-	_sfx("rope_creak", -4.0)
+	# Pre-fall: a slow walk to the lip, looking down the sinkhole.
+	if not _skip:
+		var walk := _tw()
+		walk.set_parallel(true)
+		walk.tween_property(self, "cam_pos", start - Vector3(0.0, 1.8, 0.0), 8.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		walk.tween_property(self, "cam_pitch", -1.25, 8.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		walk.tween_property(self, "shake_amount", 0.003, 8.0)
+	await _wait(1.0)
+	_sfx("rope_creak", -8.0)
+	_say("Mara's rope. Forty metres of it, and I trusted every knot.")
+	await _wait(3.3)
+	_sfx("rope_creak", -5.0, 0.95)
+	_say("She came down here first. She said the cave sings back.")
+	await _wait(3.2)
+	_sfx("rope_creak", -2.0, 0.88)
 	_say("The rope groans.")
-	await _wait(1.7)
-	_sfx("rope_creak", -1.0, 0.9)
 	await _wait(1.5)
 	_sfx("rope_snap")
 	_clear_say()
-	await _wait(0.35)
+	await _wait(0.3)
 
 	# The fall.
 	_fade(0.0, 0.25)
@@ -387,11 +399,11 @@ func play_intro() -> void:
 	if not _skip:
 		var fall := _tw()
 		fall.set_parallel(true)
-		fall.tween_property(self, "cam_pos", eye, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		fall.tween_property(self, "cam_fov", 112.0, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		fall.tween_property(self, "cam_pitch", -0.5, 1.0)
-		fall.tween_property(self, "shake_amount", 0.07, 1.0)
-	await _wait(1.0)
+		fall.tween_property(self, "cam_pos", eye, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		fall.tween_property(self, "cam_fov", 112.0, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		fall.tween_property(self, "cam_pitch", -0.5, 1.2)
+		fall.tween_property(self, "shake_amount", 0.07, 1.2)
+	await _wait(1.2)
 
 	# Impact: the lantern smashes.
 	_sfx("impact")
@@ -407,32 +419,40 @@ func play_intro() -> void:
 	overlay_alpha = 1.0
 	_overlay.color = Color.BLACK
 	shake_amount = 0.0
-	await _wait(1.5)
+	cam_fov = 75.0
 
-	# Waking up on the floor.
+	# A long dark beat: breathing, a slow heartbeat.
+	await _wait(0.8)
+	_sfx("pant", -8.0, 0.8)
+	await _wait(1.4)
+	_sfx("heartbeat_slow", -6.0)
+	await _wait(1.2)
+	_sfx("exhale", -6.0, 0.85)
+	await _wait(1.0)
+
+	# Slow wake-up on the floor.
 	var floor_eye := Vector3(floor_pos.x, floor_pos.y + 0.3, floor_pos.z)
 	cam_pos = floor_eye
 	cam_yaw = yaw
 	cam_pitch = 0.35
 	cam_roll = deg_to_rad(70.0)
-	cam_fov = 75.0
-	_fade(0.0, 1.2)
+	_fade(0.0, 2.2)
 	if not _skip:
 		var rise := _tw()
 		rise.set_parallel(true)
-		rise.tween_property(self, "cam_pos", eye, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		rise.tween_property(self, "cam_roll", 0.0, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		rise.tween_property(self, "cam_pitch", 0.0, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	await _wait(0.8)
+		rise.tween_property(self, "cam_pos", eye, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		rise.tween_property(self, "cam_roll", 0.0, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		rise.tween_property(self, "cam_pitch", 0.0, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await _wait(1.0)
 	_say("The rope snapped. The lantern's gone.")
-	await _wait(3.2)
-	_say("Call out. Listen. Find your way back.")
 	await _wait(3.0)
+	_say("Call out. Listen. Find your way back.")
+	await _wait(3.2)
 
 	await _end("intro", true)
 
 
-# ------------------------------------------------------------------ 2. Hall reveal
+# ------------------------------------------------------------------ 2. Hall reveal (~8 s)
 
 func play_hall_reveal() -> void:
 	if playing or _player == null:
@@ -440,8 +460,13 @@ func play_hall_reveal() -> void:
 	_prepare_ui_for_run()
 	_begin()
 	var head: Node3D = _player.get("head") as Node3D
-	var orig_yaw: float = _player.rotation.y
+	var orig_yaw: float = _player.global_rotation.y
 	var orig_pitch: float = head.rotation.x if head != null else 0.0
+	var orig_pos: Vector3 = head.global_position if head != null else _player.global_position + Vector3(0.0, EYE_HEIGHT, 0.0)
+	var orig_fov := 75.0
+	var pc: Camera3D = _player.get("camera") as Camera3D
+	if pc != null:
+		orig_fov = pc.fov
 	var target: Node3D = null
 	var best := INF
 	for n in get_tree().get_nodes_in_group("listener"):
@@ -452,38 +477,54 @@ func play_hall_reveal() -> void:
 		if d < best:
 			best = d
 			target = n3
+	_use_camera()
+	cam_pos = orig_pos
+	cam_yaw = orig_yaw
+	cam_pitch = orig_pitch
+	cam_roll = 0.0
+	cam_fov = orig_fov
 	_bars(true, 0.7)
 	await _wait(0.7)
-	if target != null and head != null:
+	if target != null:
 		var focus := target.global_position + Vector3(0.0, 1.0, 0.0)
-		var ang := _angles_to(head.global_position, focus)
+		var ang := _angles_to(orig_pos, focus)
 		var yaw_to := orig_yaw + angle_difference(orig_yaw, ang.x)
 		var pitch_to := clampf(ang.y, -1.2, 1.2)
+		var push_to := orig_pos + (focus - orig_pos).normalized() * 1.2
+		push_to.y = orig_pos.y
 		if not _skip:
 			var turn := _tw()
 			turn.set_parallel(true)
-			turn.tween_property(_player, "rotation:y", yaw_to, 1.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			turn.tween_property(head, "rotation:x", pitch_to, 1.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		await _wait(1.8)
-		_ping(target.global_position + Vector3(0.0, 1.0, 0.0), 8.0)
-		await _wait(0.9)
-		_say("...it hasn't heard you. Yet.")
+			turn.tween_property(self, "cam_yaw", yaw_to, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			turn.tween_property(self, "cam_pitch", pitch_to, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		await _wait(2.4)
+		_ping(focus, 8.0)
+		_sfx("sting", -10.0)
+		# Slow push-in while the echo holds.
+		if not _skip:
+			var push := _tw()
+			push.set_parallel(true)
+			push.tween_property(self, "cam_fov", orig_fov * 0.68, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			push.tween_property(self, "cam_pos", push_to, 4.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		await _wait(1.0)
+		_say("...it hasn't heard you. Yet.")
+		await _wait(2.6)
+		_say("Don't make a sound.")
+		await _wait(1.6)
 		if not _skip:
 			var back := _tw()
 			back.set_parallel(true)
-			back.tween_property(_player, "rotation:y", orig_yaw, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-			back.tween_property(head, "rotation:x", orig_pitch, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			back.tween_property(self, "cam_yaw", orig_yaw, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			back.tween_property(self, "cam_pitch", orig_pitch, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			back.tween_property(self, "cam_fov", orig_fov, 1.2)
+			back.tween_property(self, "cam_pos", orig_pos, 1.2)
 		await _wait(1.2)
 	else:
 		await _wait(1.0)
-	_player.rotation.y = orig_yaw
-	if head != null:
-		head.rotation.x = orig_pitch
 	await _end("hall_reveal", true)
 
 
-# ------------------------------------------------------------------ 3. Ending
+# ------------------------------------------------------------------ 3. Ending (~25 s)
 
 func play_ending() -> void:
 	if playing or _player == null:
@@ -512,41 +553,66 @@ func play_ending() -> void:
 	overlay_alpha = 0.0
 	_bars(true, 0.9)
 
+	# Rise through the shaft toward the light.
 	_sfx("wind", -6.0)
 	if not _skip:
 		var rise := _tw()
 		rise.set_parallel(true)
-		rise.tween_property(self, "cam_pos", top, 6.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		rise.tween_property(self, "cam_pos", top, 7.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		rise.tween_property(self, "cam_pitch", 1.25, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		rise.tween_property(self, "cam_fov", 85.0, 6.5)
-		rise.tween_property(self, "shake_amount", 0.004, 6.5)
-	await _wait(3.5)
-	_sfx("birdsong", -8.0)
+		rise.tween_property(self, "cam_fov", 85.0, 7.0)
+		rise.tween_property(self, "shake_amount", 0.004, 7.0)
+	await _wait(3.8)
 	if not _skip:
 		var glow := _tw()
 		glow.tween_property(self, "overlay_alpha", warm_peak, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	await _wait(3.2)
-	# Hold in the light, then ease back out and look down into the cave.
+	await _wait(3.4)
 	cam_pos = top
 	shake_amount = 0.0
 	await _wait(0.6)
+
+	# The lip: turn and look back down into the colored cave.
 	_fade(0.0, 2.2)
 	if not _skip:
 		var look := _tw()
 		look.set_parallel(true)
-		look.tween_property(self, "cam_pitch", -1.0, 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		look.tween_property(self, "cam_fov", 70.0, 3.0)
-	await _wait(1.2)
+		look.tween_property(self, "cam_pitch", -1.0, 3.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		look.tween_property(self, "cam_fov", 70.0, 3.2)
+	await _wait(2.0)
 	_say("You found your way back.")
-	await _wait(3.4)
+	await _wait(3.6)
+
+	# Then the sky.
+	_sfx("birdsong", -8.0)
+	if not _skip:
+		var sky := _tw()
+		sky.set_parallel(true)
+		sky.tween_property(self, "cam_pitch", 1.2, 3.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		sky.tween_property(self, "cam_fov", 80.0, 3.5)
+	await _wait(1.0)
+	_say("Daylight. Real, ordinary daylight.")
+	await _wait(4.0)
+
+	# The twist: something answers from far below.
+	_clear_say()
+	_fade(0.0, 0.1)
+	if not _skip:
+		var dim := _tw()
+		dim.tween_property(self, "cam_pitch", -1.2, 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_sfx("drag_step", -14.0, 0.7)
+	await _wait(1.2)
+	_sfx("hiss", -12.0, 0.6)
+	await _wait(1.2)
+	_say("Mara never left. She just stopped needing her eyes.")
+	await _wait(5.0)
 
 	cam_pos = top
-	cam_pitch = -1.0
+	cam_pitch = -1.2
 	overlay_alpha = 0.0
 	await _end("ending", false)
 
 
-# ------------------------------------------------------------------ 4. Level 2 intro
+# ------------------------------------------------------------------ 4. Level 2 intro (~12 s)
 
 func play_level2_intro() -> void:
 	if playing or _player == null:
@@ -566,23 +632,26 @@ func play_level2_intro() -> void:
 	cam_fov = 62.0
 	overlay_alpha = 1.0
 	_bars(true, 0.8)
-	_fade(0.0, 1.4)
+	_fade(0.0, 1.6)
 	_sfx("drip", -6.0)
 	if not _skip:
 		var sink := _tw()
 		sink.set_parallel(true)
-		sink.tween_property(self, "cam_pos", eye, 6.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		sink.tween_property(self, "cam_pitch", 0.0, 6.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		sink.tween_property(self, "cam_fov", 75.0, 6.0)
-		sink.tween_property(self, "shake_amount", 0.003, 6.0)
-	await _wait(1.6)
-	_sfx("drip", -4.0, 0.9)
-	await _wait(1.2)
-	_say("Jonah's notebook, last page: She went deeper. So do I.")
-	await _wait(1.0)
-	_sfx("drip", -3.0, 1.1)
-	await _wait(1.6)
-	_sfx("drip", -5.0, 0.8)
+		sink.tween_property(self, "cam_pos", eye, 9.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		sink.tween_property(self, "cam_pitch", 0.0, 9.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		sink.tween_property(self, "cam_fov", 75.0, 9.0)
+		sink.tween_property(self, "shake_amount", 0.003, 9.0)
 	await _wait(1.8)
+	_sfx("drip", -4.0, 0.9)
+	await _wait(1.4)
+	_say("Jonah's notebook, last page: She went deeper. So do I.")
+	await _wait(1.6)
+	_sfx("drip", -3.0, 1.1)
+	await _wait(2.2)
+	_sfx("drag_step", -16.0, 0.8)
+	_say("Something down here is still listening.")
+	await _wait(2.0)
+	_sfx("drip", -5.0, 0.8)
+	await _wait(1.6)
 	shake_amount = 0.0
 	await _end("level2_intro", true)

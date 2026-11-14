@@ -15,6 +15,11 @@ extends Node3D
 ## Chalk arrows: add a Marker3D under Geometry/Arrows, lying on the floor.
 ## Its "yaw" metadata (degrees) sets the direction: 0 = north (-Z),
 ## -90 = east (+X), 90 = west (-X), 180 = south (+Z).
+## Textures: the cave CSG is triplanar-textured in the shader (wet stone on
+## floor-facing surfaces, rock on walls/ceiling). Props are instanced from
+## res://scenes/<this scene's name>_props.tscn under Geometry. Imported props
+## use their own albedo texture; primitive props pick a look with a "surf"
+## metadata string ("wood", "rock", "metal", "rust").
 ## Daylight: MeshInstance3D nodes in group "daylight" with an unshaded
 ## StandardMaterial3D override; they glow brighter the closer the player is.
 
@@ -33,12 +38,28 @@ const DAY_NEAR := 6.0
 const DAY_FAR := 50.0
 const DAY_MIN := 0.18
 
+const TEX_DIR := "res://assets/textures/"
+const SKY_HDRI := "res://assets/hdri/sky.hdr"
+const WALL_TEX := {"level": "dark_rock", "level2": "cliff_side"}
+const FLOOR_TEX := "brown_mud_rocks_01"
+const PROP_ROCK_TEX := "rock_06"
+const WOOD_TEX := "brown_planks_09"
+const WOOD_COLOR := Color(0.46, 0.31, 0.17)
+const TEX_SCALE := 0.3
+const SURF_COLORS := {
+	"metal": Color(0.36, 0.37, 0.4),
+	"rust": Color(0.43, 0.22, 0.12),
+	"rope": Color(0.72, 0.62, 0.42),
+	"cloth": Color(0.2, 0.27, 0.36),
+}
+
 @export var reveal_material: Material
 
 var _world_material: ShaderMaterial
 var _chalk_material: ShaderMaterial
 var _landmark_material: ShaderMaterial
 var _variants := {}
+var _std_cache := {}
 var _daylights: Array[GeometryInstance3D] = []
 var _day_colors: Array[Color] = []
 var _motes: CPUParticles3D
@@ -46,6 +67,7 @@ var _mote_material: StandardMaterial3D
 
 
 func _ready() -> void:
+	_add_props()
 	_make_materials()
 	_build_arrows()
 	_apply(true)
@@ -55,8 +77,112 @@ func _ready() -> void:
 
 func reveal_colors() -> void:
 	_apply(false)
+	_set_ending_sky()
 	if _motes:
 		_motes.visible = false
+
+
+## Instances scenes/<this scene's file name>_props.tscn under Geometry.
+func _add_props() -> void:
+	if not has_node("Geometry"):
+		return
+	var path := "res://scenes/%s_props.tscn" % scene_file_path.get_file().get_basename()
+	if not ResourceLoader.exists(path):
+		return
+	var packed := load(path) as PackedScene
+	if packed == null:
+		return
+	var props := packed.instantiate()
+	props.name = "DressingProps"
+	$Geometry.add_child(props)
+	_add_prop_collision(props)
+
+
+## Gives every prop a simple box collider (world layer 1) so the player,
+## pebbles, Listeners and raycasts treat it as solid. Tiny or flat pieces
+## (bones, rope, puddles, scraps) stay walk-through so nobody snags on them.
+## Opt out per node with the group "no_collision".
+const PROP_MIN_SIZE := 0.3
+const PROP_MIN_HEIGHT := 0.12
+
+
+func _add_prop_collision(root: Node) -> void:
+	for node in root.find_children("*", "GeometryInstance3D", true, false):
+		if _tagged(node, "no_collision"):
+			continue
+		var csg := node as CSGShape3D
+		if csg != null:
+			if csg.is_root_shape():
+				csg.use_collision = true
+			continue
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var box := mi.get_aabb()
+		var world_size := box.size * mi.global_transform.basis.get_scale().abs()
+		if maxf(world_size.x, maxf(world_size.y, world_size.z)) < PROP_MIN_SIZE or world_size.y < PROP_MIN_HEIGHT:
+			continue
+		var body := StaticBody3D.new()
+		body.name = "PropCollision"
+		body.collision_layer = 1
+		body.collision_mask = 0
+		var shape := CollisionShape3D.new()
+		var cube := BoxShape3D.new()
+		cube.size = Vector3(maxf(box.size.x, 0.01), maxf(box.size.y, 0.01), maxf(box.size.z, 0.01))
+		shape.shape = cube
+		shape.position = box.get_center()
+		body.add_child(shape)
+		mi.add_child(body)
+
+
+## Daylight sky from the HDRI for the color ending.
+func _set_ending_sky() -> void:
+	var scene := get_tree().current_scene
+	if scene == null or not ResourceLoader.exists(SKY_HDRI):
+		return
+	var we := scene.get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if we == null or we.environment == null:
+		return
+	var pano := PanoramaSkyMaterial.new()
+	pano.panorama = load(SKY_HDRI) as Texture2D
+	var sky := Sky.new()
+	sky.sky_material = pano
+	var env := we.environment
+	env.sky = sky
+	env.background_mode = Environment.BG_SKY
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+
+
+func _tex(tex_name: String, suffix: String) -> Texture2D:
+	var path := "%s%s_%s.jpg" % [TEX_DIR, tex_name, suffix]
+	if ResourceLoader.exists(path):
+		return load(path) as Texture2D
+	return null
+
+
+## Switches a reveal material to triplanar sampling of the given texture sets.
+func _set_triplanar(mat: ShaderMaterial, wall: String, floor_name: String, tile: float = TEX_SCALE) -> void:
+	var wall_tex := _tex(wall, "diff")
+	var floor_tex := _tex(floor_name, "diff")
+	if wall_tex == null or floor_tex == null:
+		return
+	mat.set_shader_parameter("tex_wall", wall_tex)
+	mat.set_shader_parameter("tex_floor", floor_tex)
+	var wall_nor := _tex(wall, "nor")
+	var floor_nor := _tex(floor_name, "nor")
+	if wall_nor != null:
+		mat.set_shader_parameter("nor_wall", wall_nor)
+	if floor_nor != null:
+		mat.set_shader_parameter("nor_floor", floor_nor)
+	mat.set_shader_parameter("tex_scale", tile)
+	mat.set_shader_parameter("use_triplanar", 1.0)
+
+
+func _set_flat(mat: ShaderMaterial, color: Color) -> void:
+	mat.set_shader_parameter("use_triplanar", 0.0)
+	mat.set_shader_parameter("use_albedo_tex", 0.0)
+	mat.set_shader_parameter("use_flat", 1.0)
+	mat.set_shader_parameter("albedo_color", color)
 
 
 func _make_materials() -> void:
@@ -66,7 +192,10 @@ func _make_materials() -> void:
 		base.shader = preload("res://shaders/reveal.gdshader")
 	_world_material = base.duplicate() as ShaderMaterial
 	_set_params(_world_material, WORLD_PARAMS)
+	var wall := str(WALL_TEX.get(scene_file_path.get_file().get_basename(), "dark_rock"))
+	_set_triplanar(_world_material, wall, FLOOR_TEX)
 	_chalk_material = _world_material.duplicate() as ShaderMaterial
+	_set_flat(_chalk_material, Color(0.85, 0.85, 0.85))
 	_chalk_material.set_shader_parameter("echo_color", Color(1.0, 1.0, 1.0))
 	_landmark_material = _world_material.duplicate() as ShaderMaterial
 	_set_params(_landmark_material, LANDMARK_PARAMS)
@@ -85,7 +214,7 @@ func _apply(on: bool) -> void:
 		if on:
 			gi.material_override = _material_for(gi)
 		else:
-			gi.material_override = null
+			gi.material_override = _color_material(gi)
 
 
 func _material_for(node: Node) -> Material:
@@ -95,7 +224,113 @@ func _material_for(node: Node) -> Material:
 		return _chalk_material
 	if _tagged(node, "landmark"):
 		return _landmark_material
+	var cave := get_node_or_null("Geometry/Cave")
+	if cave != null and (node == cave or cave.is_ancestor_of(node)):
+		return _world_material
+	if node.has_meta("surf"):
+		return _surf_material(str(node.get_meta("surf")))
+	var bm := _source_material(node) as BaseMaterial3D
+	if bm != null:
+		return _from_standard(bm)
 	return _world_material
+
+
+## The material a node was authored with (CSG primitive or mesh surface).
+func _source_material(node: Node) -> Material:
+	if node is CSGPrimitive3D:
+		return (node as CSGPrimitive3D).material
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if mi.get_surface_override_material_count() > 0:
+			var over := mi.get_surface_override_material(0)
+			if over != null:
+				return over
+		if mi.mesh != null and mi.mesh.get_surface_count() > 0:
+			return mi.mesh.surface_get_material(0)
+	return null
+
+
+## Reveal variant for an authored StandardMaterial3D: its albedo texture, a
+## wood texture for wood-colored ones, or just its flat color.
+func _from_standard(bm: BaseMaterial3D) -> ShaderMaterial:
+	var tex := bm.albedo_texture
+	var color := bm.albedo_color
+	var key := "std:%d:%s" % [tex.get_instance_id() if tex != null else 0, str(color)]
+	if _variants.has(key):
+		return _variants[key] as ShaderMaterial
+	var mat: ShaderMaterial
+	if tex != null:
+		mat = _world_material.duplicate() as ShaderMaterial
+		mat.set_shader_parameter("use_triplanar", 0.0)
+		mat.set_shader_parameter("use_flat", 0.0)
+		mat.set_shader_parameter("use_albedo_tex", 1.0)
+		mat.set_shader_parameter("albedo_tex", tex)
+		mat.set_shader_parameter("albedo_color", Color(color.r, color.g, color.b))
+	elif absf(color.r - WOOD_COLOR.r) + absf(color.g - WOOD_COLOR.g) + absf(color.b - WOOD_COLOR.b) < 0.2:
+		mat = _surf_material("wood")
+	else:
+		mat = _world_material.duplicate() as ShaderMaterial
+		_set_flat(mat, color)
+	_variants[key] = mat
+	return mat
+
+
+## Look for primitive props with a "surf" metadata string.
+func _surf_material(kind: String) -> ShaderMaterial:
+	var key := "surf:" + kind
+	if _variants.has(key):
+		return _variants[key] as ShaderMaterial
+	var mat := _world_material.duplicate() as ShaderMaterial
+	if kind == "wood":
+		_set_triplanar(mat, WOOD_TEX, WOOD_TEX, 0.6)
+	elif kind == "rock":
+		_set_triplanar(mat, PROP_ROCK_TEX, PROP_ROCK_TEX)
+	else:
+		_set_flat(mat, SURF_COLORS.get(kind, Color(0.5, 0.5, 0.5)))
+	_variants[key] = mat
+	return mat
+
+
+## Lit, textured material for the color ending (null = keep the authored one).
+func _color_material(node: Node) -> Material:
+	if _tagged(node, "chalk"):
+		return null
+	var cave := get_node_or_null("Geometry/Cave")
+	if cave != null and (node == cave or cave.is_ancestor_of(node)):
+		return _std_material("cave")
+	if node.has_meta("surf"):
+		return _std_material(str(node.get_meta("surf")))
+	if _source_material(node) == null:
+		return _std_material("rock")
+	return null
+
+
+func _std_material(kind: String) -> StandardMaterial3D:
+	if _std_cache.has(kind):
+		return _std_cache[kind] as StandardMaterial3D
+	var mat := StandardMaterial3D.new()
+	mat.roughness = 0.9
+	var tex_name := ""
+	if kind == "cave":
+		tex_name = str(WALL_TEX.get(scene_file_path.get_file().get_basename(), "dark_rock"))
+	elif kind == "rock":
+		tex_name = PROP_ROCK_TEX
+	elif kind == "wood":
+		tex_name = WOOD_TEX
+	else:
+		mat.albedo_color = SURF_COLORS.get(kind, Color(0.5, 0.5, 0.5))
+	if tex_name != "":
+		mat.albedo_texture = _tex(tex_name, "diff")
+		var nor := _tex(tex_name, "nor")
+		if nor != null:
+			mat.normal_enabled = true
+			mat.normal_texture = nor
+		mat.uv1_triplanar = true
+		mat.uv1_world_triplanar = true
+		var k := 0.6 if kind == "wood" else TEX_SCALE
+		mat.uv1_scale = Vector3(k, k, k)
+	_std_cache[kind] = mat
+	return mat
 
 
 ## The node or one of its parents (below this level) is in the group.
@@ -114,6 +349,9 @@ func _variant(params: Dictionary) -> ShaderMaterial:
 	if _variants.has(key):
 		return _variants[key] as ShaderMaterial
 	var mat := _world_material.duplicate() as ShaderMaterial
+	if params.has("ripple"):
+		# Water: no rock texture.
+		_set_flat(mat, Color(0.3, 0.36, 0.42))
 	_set_params(mat, params)
 	_variants[key] = mat
 	return mat

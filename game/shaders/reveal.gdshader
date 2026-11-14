@@ -2,7 +2,11 @@
 // Ping data comes from global shader parameters set by the Echo autoload.
 // Slots 0-3 are the player's pings (radius ~6 = a whisper), 4-7 pebble pings.
 // Kept cheap: inactive slots and points the ring hasn't reached return early,
-// and every slot is a few ALU ops (no loops, no textures).
+// and textures are only sampled where some light actually reaches.
+// Texturing: use_triplanar (cave CSG: world-space tex_floor/tex_wall + normals,
+// picked by surface normal), use_albedo_tex (imported props: albedo_tex via UV)
+// or use_flat (a plain albedo_color). With none of them on (Listener, phantoms)
+// the old texture-less echo_color look is used.
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
@@ -47,6 +51,21 @@ uniform float pebble_tint = 0.0;
 uniform float close_boost = 0.0;
 // Water: the afterglow ripples outward in rings.
 uniform float ripple = 0.0;
+
+// How much the real surface colour is pulled toward echo_color when lit.
+uniform float tint = 0.35;
+uniform float exposure = 2.2;
+uniform float use_triplanar = 0.0;
+uniform float use_albedo_tex = 0.0;
+uniform float use_flat = 0.0;
+uniform float tex_scale = 0.3;
+uniform float normal_strength = 1.0;
+uniform vec3 albedo_color : source_color = vec3(0.6);
+uniform sampler2D tex_floor : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D tex_wall : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D nor_floor : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D nor_wall : hint_normal, filter_linear_mipmap, repeat_enable;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
 
 const vec3 GOLD = vec3(1.0, 0.76, 0.3);
 
@@ -108,13 +127,17 @@ void fragment() {
 	// Memory takes the strongest trace, so overlapping pings don't pile up.
 	float mem = max(max(max(a0.w, a1.w), max(a2.w, a3.w)), max(max(b0.w, b1.w), max(b2.w, b3.w)));
 
+	bool textured = use_triplanar > 0.5 || use_albedo_tex > 0.5 || use_flat > 0.5;
+
 	vec3 g = wpos * grid_scale;
 	vec3 f = abs(fract(g + 0.5) - 0.5);
-	vec3 w = fwidth(g) * 1.5;
-	vec3 lines = (vec3(1.0) - smoothstep(vec3(0.0), w, f)) * (vec3(1.0) - step(vec3(0.9), abs(wnorm)));
+	vec3 gw = fwidth(g) * 1.5;
+	vec3 lines = (vec3(1.0) - smoothstep(vec3(0.0), gw, f)) * (vec3(1.0) - step(vec3(0.9), abs(wnorm)));
 	float grid = max(max(lines.x, lines.y), lines.z);
 	float rim = 1.0 - abs(dot(NORMAL, VIEW));
-	float detail = 0.3 + 0.7 * grid + 0.5 * rim;
+	float detail = textured ? 1.0 : (0.3 + 0.7 * grid + 0.5 * rim);
+	// Textured surfaces keep only a very faint grid.
+	float gk = textured ? 0.15 * grid : grid;
 
 	float to_player = distance(wpos, player_pos);
 	float close = 1.0 + close_boost * (1.0 - smoothstep(1.0, 3.5, to_player));
@@ -123,19 +146,67 @@ void fragment() {
 
 	float floor_up = step(0.7, wnorm.y);
 	// Footstep glow: each step briefly lights the floor around the player.
-	float near = (1.0 - smoothstep(0.6, 1.6, to_player)) * floor_up * near_glow * step_glow * (0.4 + grid);
-	// Assist outline (Settings.hint_glow): the floor grid and the foot of the
+	float near = (1.0 - smoothstep(0.6, 1.6, to_player)) * floor_up * near_glow * step_glow * (0.4 + gk);
+	// Assist outline (Settings.hint_glow): the floor and the foot of the
 	// walls within a few meters, so nobody gets completely lost.
 	float around = 1.0 - smoothstep(1.5, 4.0, distance(wpos.xz, player_pos.xz));
 	float height = wpos.y - player_pos.y;
 	float wall_foot = (1.0 - floor_up) * step(-0.3, height) * (1.0 - smoothstep(0.05, 0.4, height));
-	float assist = hint_glow * floor_hint * around * (floor_up * (0.08 + 0.5 * grid) + wall_foot * 0.9) * 0.6;
-	float memv = mem * (0.35 + 0.65 * grid);
-
-	vec3 col = echo_color * (ip + near + assist + memv) + mix(echo_color, GOLD, pebble_tint) * ib;
-	float peak = max(max(col.r, col.g), col.b);
-	col = mix(col, vec3(peak), clamp((lp.x + lb.x) * 0.35, 0.0, 0.6));
+	float assist = hint_glow * floor_hint * around * (floor_up * (0.08 + 0.5 * gk) + wall_foot * 0.9) * 0.6;
+	float memv = mem * (0.35 + 0.65 * gk);
 	float lead = clamp(lp.z + lb.z, 0.0, 1.0);
-	col += vec3(lead * (0.55 + 0.45 * grid) * 1.2);
+
+	vec3 col;
+	if (textured) {
+		vec3 albedo = vec3(0.6);
+		float shade = 1.0;
+		float light_sum = ip + ib + near + assist + memv + lead;
+		if (light_sum > 0.004) {
+			if (use_triplanar > 0.5) {
+				vec3 nn = normalize(wnorm);
+				vec3 wt = pow(abs(nn), vec3(6.0));
+				wt /= (wt.x + wt.y + wt.z);
+				float up = smoothstep(0.0, 0.3, nn.y);
+				vec2 uvy = wpos.xz * tex_scale;
+				vec2 uvx = wpos.zy * tex_scale;
+				vec2 uvz = wpos.xy * tex_scale;
+				vec3 af = texture(tex_floor, uvy).rgb;
+				vec3 aw = texture(tex_wall, uvy).rgb;
+				vec3 ax = texture(tex_wall, uvx).rgb;
+				vec3 az = texture(tex_wall, uvz).rgb;
+				albedo = ax * wt.x + az * wt.z + mix(aw, af, up) * wt.y;
+				vec3 nf = texture(nor_floor, uvy).xyz * 2.0 - 1.0;
+				vec3 nw = texture(nor_wall, uvy).xyz * 2.0 - 1.0;
+				vec3 nx = texture(nor_wall, uvx).xyz * 2.0 - 1.0;
+				vec3 nz = texture(nor_wall, uvz).xyz * 2.0 - 1.0;
+				vec3 ty = mix(nw, nf, up);
+				vec3 off = vec3(ty.x, 0.0, ty.y) * wt.y + vec3(0.0, nx.y, nx.x) * wt.x + vec3(nz.x, nz.y, 0.0) * wt.z;
+				vec3 pn = normalize(nn + off * normal_strength);
+				vec3 vn = normalize((VIEW_MATRIX * vec4(pn, 0.0)).xyz);
+				float rl = clamp(dot(vn, VIEW), 0.0, 1.0) / max(abs(dot(normalize(NORMAL), VIEW)), 0.3);
+				shade = clamp(rl, 0.25, 1.3);
+			} else if (use_albedo_tex > 0.5) {
+				albedo = texture(albedo_tex, UV).rgb * albedo_color;
+			} else {
+				albedo = albedo_color;
+			}
+		}
+		vec3 base = albedo * shade;
+		float lum = dot(base, vec3(0.299, 0.587, 0.114));
+		vec3 pc = mix(echo_color, GOLD, pebble_tint);
+		vec3 ce = mix(base, echo_color * (0.1 + lum * 2.2), tint);
+		vec3 cb = mix(base, pc * (0.1 + lum * 2.2), tint);
+		col = (ce * (ip + near + assist + memv) + cb * ib) * exposure;
+		// A very faint grid, only where the ring is passing.
+		col += echo_color * grid * (lp.x + lb.x) * 0.1;
+		float peak = max(max(col.r, col.g), col.b);
+		col = mix(col, vec3(peak), clamp((lp.x + lb.x) * 0.12, 0.0, 0.25));
+		col += vec3(lead * 0.9);
+	} else {
+		col = echo_color * (ip + near + assist + memv) + mix(echo_color, GOLD, pebble_tint) * ib;
+		float peak = max(max(col.r, col.g), col.b);
+		col = mix(col, vec3(peak), clamp((lp.x + lb.x) * 0.35, 0.0, 0.6));
+		col += vec3(lead * (0.55 + 0.45 * grid) * 1.2);
+	}
 	ALBEDO = col;
 }

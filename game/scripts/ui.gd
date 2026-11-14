@@ -42,7 +42,18 @@ const PROMPTS := {
 	"interact": ["interact", "Play the recording."],
 	"map": ["map", "Map: everywhere you've heard."],
 	"pebbles_empty": ["", "Out of pebbles."],
+	"hold_breath": ["hold_breath", "Hold your breath"],
+	"hide": ["interact", "Hide"],
 }
+const EXTRA_SHADER := """
+shader_type canvas_item;
+uniform vec4 tint : source_color = vec4(0.0, 0.0, 0.0, 1.0);
+uniform float amount = 0.0;
+void fragment() {
+	float d = length((UV - vec2(0.5)) * vec2(1.0, 0.8)) * 1.6;
+	COLOR = vec4(tint.rgb, amount * smoothstep(0.35, 1.05, d));
+}
+"""
 const REPEATABLE := ["interact"]
 
 const VIGNETTE_SHADER := """
@@ -182,6 +193,14 @@ var _opening_skip := false
 var _mouse_hidden := false
 var _total_logs := -1
 var _time := 0.0
+var _extra: ColorRect
+var _breath_bg: ColorRect
+var _breath_fill: ColorRect
+var _toast: Label
+var _toast_tween: Tween
+var _chase := false
+var _chase_amt := 0.0
+var _hide_amt := 0.0
 var _black_tween: Tween
 var _edge_tween: Tween
 var _zone_tween: Tween
@@ -216,6 +235,7 @@ func _ready() -> void:
 	if ResourceLoader.exists(INDICATORS_PATH):
 		_indicators = _add_script_control(INDICATORS_PATH)
 	_build_subtitles()
+	_build_extras()
 	_flash = _rect(Color(0.6, 0.0, 0.03, 0.0))
 	_black = _rect(Color(0.0, 0.0, 0.0, 0.0))
 	_center = _center_label(40, Color(0.95, 0.9, 0.9), -20.0)
@@ -267,6 +287,8 @@ func _ready() -> void:
 	Game.player_fell.connect(_on_fell)
 	Game.checkpoint_reached.connect(_on_checkpoint)
 	Game.stat_changed.connect(_on_stat)
+	Game.journal_page.connect(_on_journal_page)
+	Game.level_event.connect(_on_level_event_ui)
 	Echo.ping_emitted.connect(_on_ping)
 	Settings.changed.connect(_apply_sub_size)
 	_last_pebbles = Game.pebbles
@@ -341,6 +363,79 @@ func _build_hud() -> void:
 	_timer_label.offset_bottom = 48.0
 	_timer_label.visible = false
 	root.add_child(_timer_label)
+
+
+func _build_extras() -> void:
+	_extra = _rect(Color.WHITE, EXTRA_SHADER)
+	_extra.visible = false
+	_breath_bg = ColorRect.new()
+	_breath_bg.color = Color(1, 1, 1, 0.15)
+	_breath_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_breath_bg.anchor_left = 0.5
+	_breath_bg.anchor_right = 0.5
+	_breath_bg.anchor_top = 0.78
+	_breath_bg.anchor_bottom = 0.78
+	_breath_bg.offset_left = -80.0
+	_breath_bg.offset_right = 80.0
+	_breath_bg.offset_top = 0.0
+	_breath_bg.offset_bottom = 6.0
+	_breath_bg.visible = false
+	root.add_child(_breath_bg)
+	_breath_fill = ColorRect.new()
+	_breath_fill.color = Color(0.7, 0.9, 1.0, 0.85)
+	_breath_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_breath_fill.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_breath_fill.anchor_right = 1.0
+	_breath_bg.add_child(_breath_fill)
+	_toast = Style.label("", 20, Style.CYAN)
+	_toast.anchor_left = 0.0
+	_toast.anchor_right = 1.0
+	_toast.anchor_top = 0.0
+	_toast.anchor_bottom = 0.0
+	_toast.offset_top = 70.0
+	_toast.offset_bottom = 100.0
+	_toast.modulate.a = 0.0
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_toast)
+
+
+func _update_extras(delta: float, live: bool) -> void:
+	var hiding: bool = live and _pget("is_hiding", false) == true
+	_hide_amt = move_toward(_hide_amt, 0.75 if hiding else 0.0, delta * 2.0)
+	var chase_target := 0.0
+	if _chase and live:
+		chase_target = 0.4 + 0.15 * sin(_time * 6.0) if not Settings.reduce_shake else 0.4
+	_chase_amt = move_toward(_chase_amt, chase_target, delta * 1.5)
+	_extra.visible = _hide_amt > 0.01 or _chase_amt > 0.01
+	if _extra.visible:
+		var m := _extra.material as ShaderMaterial
+		if _hide_amt >= _chase_amt:
+			m.set_shader_parameter("tint", Color(0.0, 0.02, 0.05))
+			m.set_shader_parameter("amount", _hide_amt)
+		else:
+			m.set_shader_parameter("tint", Color(0.5, 0.0, 0.03))
+			m.set_shader_parameter("amount", _chase_amt)
+	var breath: float = _pget("breath", 1.0)
+	var holding: bool = _pget("holding_breath", false) == true
+	_breath_bg.visible = live and (holding or breath < 0.99)
+	_breath_fill.anchor_right = clampf(breath, 0.0, 1.0)
+
+
+func _on_journal_page(_index: int, _text: String) -> void:
+	_toast.text = "Journal page found"
+	if _toast_tween != null:
+		_toast_tween.kill()
+	_toast_tween = create_tween()
+	_toast_tween.tween_property(_toast, "modulate:a", 1.0, 0.3)
+	_toast_tween.tween_interval(2.6)
+	_toast_tween.tween_property(_toast, "modulate:a", 0.0, 0.8)
+
+
+func _on_level_event_ui(event_name: String) -> void:
+	if event_name == "chase_start":
+		_chase = true
+	elif event_name == "chase_end":
+		_chase = false
 
 
 func _build_zone() -> void:
@@ -624,6 +719,7 @@ func _process(delta: float) -> void:
 
 	_update_prompt(delta, live)
 	_update_subtitle(delta)
+	_update_extras(delta, live)
 
 
 func _cutscene_playing() -> bool:

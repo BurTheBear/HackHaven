@@ -24,7 +24,7 @@ const LINES := [
 	["", 24, "text"],
 	["SOUND", 20, "gold"],
 	["Placeholder sounds synthesized in code", 17, "text"],
-	["CC0 sound sources: add credits here", 17, "muted"],
+	["Full asset and sound credits: game/CREDITS.md", 17, "muted"],
 	["", 24, "text"],
 	["ART", 20, "gold"],
 	["CC0 asset packs: add pack names here", 17, "muted"],

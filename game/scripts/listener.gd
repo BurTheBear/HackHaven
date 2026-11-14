@@ -11,13 +11,15 @@ extends CharacterBody3D
 ## that pulses in a heartbeat rhythm (slow while calm, fast while hunting).
 ## Every sound it makes is 3D: breathing, voice, dragging footsteps, sniffs.
 
-enum Mode { PATROL, LISTEN, ALERT, INVESTIGATE, SEARCH, WANDER }
+enum Mode { PATROL, LISTEN, ALERT, INVESTIGATE, SEARCH, WANDER, CHASE }
 
 const SOUND_SPEED := 18.0  ## Same as the ping ring speed in the shader.
 const BodyRig := preload("res://scripts/ai_listener_body.gd")
 const RED := Color(1.0, 0.23, 0.31)
 ## A director hint never walks it closer to the player than this (meters).
 const HINT_STOP_DISTANCE := 6.5
+const NEAR_MISS_DIST := 2.0  ## Passing a still / sneaking player this close without catching them.
+const HIDE_SNIFF_TIME := 6.0  ## Seconds near a hiding player before it sniffs them out.
 
 @export var patrol_offset := Vector3(0, 0, 6)
 @export var patrol_speed := 1.5
@@ -30,6 +32,12 @@ const HINT_STOP_DISTANCE := 6.5
 @export var asleep := false
 @export var wake_radius := 10.0
 @export var hear_lines: Array[AudioStream] = []
+## Optional patrol route: points relative to the spawn position, walked in a loop.
+@export var patrol_points := PackedVector3Array()
+## Speed while chasing (the chase listener sprints, but slower than the player's run).
+@export var chase_speed := 4.4
+## Chase listener: if the player is closer than 9 m when the chase starts, it starts from its home.
+@export var chase_reset := false
 
 @onready var voice: AudioStreamPlayer3D = $Voice
 @onready var breath: AudioStreamPlayer3D = $Breath
@@ -77,6 +85,12 @@ var _breath_db := -6.0
 var _uneven_timer := 0.0
 var _uneven_pitch := 1.0
 var _hold_breath := 0.0
+var _wp := 0
+var _heard_lure := false
+var _lure_thrower := Vector3.ZERO
+var _near_pass := false
+var _near_cd := 0.0
+var _sniff_hide := 0.0
 
 
 func _ready() -> void:
@@ -106,6 +120,10 @@ func _ready() -> void:
 	_agent.avoidance_enabled = false
 	add_child(_agent)
 
+	Echo.lures_fooled = 0
+	Echo.adapt_announced = false
+	Echo.pebble_lure.connect(_on_pebble_lure)
+	Game.level_event.connect(_on_level_event)
 	Echo.ping_emitted.connect(_on_ping)
 	Echo.noise_made.connect(_on_noise)
 	Game.player_caught.connect(_on_player_caught)
@@ -139,11 +157,11 @@ func _start_sounds() -> void:
 
 
 func is_hunting() -> bool:
-	return mode == Mode.ALERT or mode == Mode.INVESTIGATE
+	return mode == Mode.ALERT or mode == Mode.INVESTIGATE or mode == Mode.CHASE
 
 
 func _on_ping(origin: Vector3, max_radius: float, loud: bool) -> void:
-	if not loud or _deaf > 0.0:
+	if not loud or _deaf > 0.0 or mode == Mode.CHASE:
 		return
 	var d := global_position.distance_to(origin)
 	if asleep and d > wake_radius:
@@ -152,7 +170,15 @@ func _on_ping(origin: Vector3, max_radius: float, loud: bool) -> void:
 		return
 	# React when the sound actually reaches us, not instantly.
 	_heard_origin = origin
+	_heard_lure = false
 	_hear_delay = d / SOUND_SPEED
+
+
+## A pebble's ping reached us: remember it was a lure and where it was thrown from.
+func _on_pebble_lure(origin: Vector3, thrower: Vector3) -> void:
+	if _hear_delay >= 0.0 and _heard_origin.is_equal_approx(origin):
+		_heard_lure = true
+		_lure_thrower = thrower
 
 
 func _on_noise(origin: Vector3, radius: float) -> void:
@@ -160,6 +186,18 @@ func _on_noise(origin: Vector3, radius: float) -> void:
 
 
 func _hear() -> void:
+	# Adaptive: after a few fooled hunts, Listeners increasingly ignore the pebble
+	# and go to where it was thrown from (where you stand).
+	if _heard_lure:
+		var ignore_chance := clampf(0.3 * float(Echo.lures_fooled - 2), 0.0, 0.9)
+		if Echo.lures_fooled >= 3 and randf() < ignore_chance:
+			_heard_origin = _lure_thrower
+			if not Echo.adapt_announced:
+				Echo.adapt_announced = true
+				Game.show_subtitle("They're learning.")
+		else:
+			Echo.lures_fooled += 1
+	_heard_lure = false
 	_target = Vector3(_heard_origin.x, global_position.y, _heard_origin.z)
 	# The head snaps to the sound before the body moves (a tell for pebble lures).
 	_snap_head(_heard_origin)
@@ -216,7 +254,7 @@ func wander_to(p: Vector3) -> bool:
 
 ## Director release: back off and go deaf for a moment.
 func retreat() -> void:
-	if asleep:
+	if asleep or mode == Mode.CHASE:
 		return
 	mode = Mode.PATROL
 	_hear_delay = -1.0
@@ -234,6 +272,10 @@ func hush(seconds: float, fade_in: float = 2.5, boost_db: float = 0.0) -> void:
 
 
 func _on_player_caught() -> void:
+	if mode == Mode.CHASE:
+		Game.level_event.emit("chase_end")
+	_near_pass = false
+	_sniff_hide = 0.0
 	mode = Mode.PATROL
 	_hear_delay = -1.0
 	_deaf = 3.0
@@ -252,6 +294,8 @@ func _clear_checkpoint() -> void:
 
 
 func _on_game_won() -> void:
+	if mode == Mode.CHASE:
+		Game.level_event.emit("chase_end")
 	mode = Mode.PATROL
 	_hear_delay = -1.0
 	_deaf = 9999.0
@@ -274,12 +318,17 @@ func _physics_process(delta: float) -> void:
 	match mode:
 		Mode.PATROL:
 			if not asleep:
-				dest = _home + patrol_offset if _to_far else _home
+				if patrol_points.size() > 0:
+					dest = _home + patrol_points[_wp % patrol_points.size()]
+					if _flat_dist(dest) < 0.6:
+						_wp = (_wp + 1) % patrol_points.size()
+				else:
+					dest = _home + patrol_offset if _to_far else _home
+					if _flat_dist(dest) < 0.5:
+						_to_far = not _to_far
 				speed = patrol_speed * pace
-				if _flat_dist(dest) < 0.5:
-					_to_far = not _to_far
 				_listen_timer -= delta
-				if _listen_timer <= 0.0 and patrol_offset != Vector3.ZERO:
+				if _listen_timer <= 0.0 and (patrol_offset != Vector3.ZERO or patrol_points.size() > 0):
 					mode = Mode.LISTEN
 					_search = randf_range(1.2, 2.6)
 		Mode.LISTEN:
@@ -306,6 +355,17 @@ func _physics_process(delta: float) -> void:
 			# A hint never walks it into the player's face unseen.
 			if _flat_dist(dest) < 1.0 or (p != null and _flat_dist(p.global_position) < HINT_STOP_DISTANCE):
 				_begin_search(2.5)
+		Mode.CHASE:
+			var cp := _get_player()
+			if cp == null:
+				mode = Mode.PATROL
+			else:
+				dest = cp.global_position
+				speed = chase_speed * pace
+				if cp.call("is_hidden") == true and _flat_dist(cp.global_position) < 8.0:
+					stop_chase(true)
+				elif _flat_dist(cp.global_position) > 45.0:
+					stop_chase(false)
 		Mode.SEARCH:
 			_search -= delta
 			rotate_y(delta * 0.7)
@@ -315,6 +375,8 @@ func _physics_process(delta: float) -> void:
 	_check_stuck(delta, speed)
 	_update_breath(delta)
 	_check_catch()
+	_track_hidden_player(delta)
+	_track_near_miss(delta)
 
 
 func _process(delta: float) -> void:
@@ -334,6 +396,8 @@ func _process(delta: float) -> void:
 
 
 func _begin_search(seconds: float) -> void:
+	if is_hunting() and mode != Mode.CHASE:
+		_thud()
 	mode = Mode.SEARCH
 	_search = seconds
 	_sniff_timer = randf_range(0.3, 0.8)
@@ -401,12 +465,16 @@ func _nav_ready() -> bool:
 
 ## If a wall blocks it, give up and search.
 func _check_stuck(delta: float, speed: float) -> void:
+	if mode == Mode.CHASE:
+		_stuck = 0.0
+		return
 	if speed > 0.0 and get_real_velocity().length() < 0.2:
 		_stuck += delta
 		if _stuck > 1.5:
 			_stuck = 0.0
 			if mode == Mode.PATROL:
 				_to_far = not _to_far
+				_wp += 1
 			else:
 				_begin_search(2.0)
 	else:
@@ -483,7 +551,7 @@ func _animate_head(delta: float) -> void:
 	var tilt := 0.0
 	var rate := 5.0
 	match mode:
-		Mode.ALERT, Mode.INVESTIGATE:
+		Mode.ALERT, Mode.INVESTIGATE, Mode.CHASE:
 			want = _local_yaw(_target)
 			rate = 8.0
 		Mode.SEARCH, Mode.LISTEN:
@@ -581,6 +649,8 @@ func _check_catch() -> void:
 	var p := _get_player()
 	if p == null:
 		return
+	if p.call("is_hidden") == true:
+		return  # hiding and quiet: it can't see or catch you
 	var reach: float = catch_distance * (0.8 if Settings.assist_mode else 1.0) + 0.4
 	if _flat_dist(p.global_position) >= reach or absf(p.global_position.y - global_position.y) >= 2.0:
 		return
@@ -594,3 +664,100 @@ func _check_catch() -> void:
 		voice.volume_db = 0.0
 		voice.play()
 	Game.catch_player(global_position)
+
+
+# ---------------------------------------------------------------- Chase, hiding, near misses
+
+func _on_level_event(event_name: String) -> void:
+	if event_name == "chase" and is_in_group("chase_listener"):
+		start_chase()
+	elif event_name == "chase_end" and mode == Mode.CHASE:
+		stop_chase(true)
+
+
+## The scripted chase: it wakes, roars and sprints straight at the player.
+func start_chase() -> void:
+	if mode == Mode.CHASE or Game.state != Game.State.PLAYING:
+		return
+	var p := _get_player()
+	if p == null:
+		return
+	if chase_reset and _flat_dist(p.global_position) < 9.0:
+		global_position = _home
+		velocity = Vector3.ZERO
+	asleep = false
+	mode = Mode.CHASE
+	_gave_chase = true
+	_hear_delay = -1.0
+	_deaf = 0.0
+	_catch_grace = 0.6
+	_hold_breath = 0.0
+	breath.stream_paused = false
+	_snap_head(p.global_position)
+	voice.stream = Sfx.stream("listener_roar")
+	voice.pitch_scale = randf_range(0.85, 0.95)
+	voice.volume_db = 3.0
+	voice.play()
+	_caption("[a roar: it is running at you]", 1.0, 60.0)
+	Game.listener_alerted.emit(global_position)
+	Game.level_event.emit("chase_start")
+
+
+func stop_chase(search: bool) -> void:
+	if mode != Mode.CHASE:
+		return
+	mode = Mode.PATROL
+	Game.level_event.emit("chase_end")
+	if search:
+		_begin_search(6.0)
+
+
+## A hunting Listener stopping near you: one heavy, quiet thud.
+func _thud() -> void:
+	var p := _get_player()
+	if p == null or p.global_position.distance_to(global_position) > 10.0:
+		return
+	Sfx.play_3d("impact", global_position, -14.0, &"Cave", randf_range(0.7, 0.9), 4.0, 25.0)
+	if p.has_method("thump"):
+		p.call("thump", 0.5)
+
+
+## A hiding player is found if it lingers near them for HIDE_SNIFF_TIME seconds.
+func _track_hidden_player(delta: float) -> void:
+	var p := _get_player()
+	if p == null or asleep or Game.state != Game.State.PLAYING:
+		return
+	var searching := mode == Mode.SEARCH or mode == Mode.INVESTIGATE or mode == Mode.ALERT or mode == Mode.LISTEN
+	if p.call("is_hidden") == true and searching and _flat_dist(p.global_position) < 3.0:
+		var rate := 0.5 if p.get("holding_breath") == true else 1.0
+		_sniff_hide += delta * rate
+		if _sniff_hide >= HIDE_SNIFF_TIME:
+			_sniff_hide = 0.0
+			p.call("expose_hidden")
+			_sniff()
+			_caption("[a long sniff: it found you]", 2.0, 12.0)
+			_heard_origin = p.global_position
+			_heard_lure = false
+			_hear_delay = -1.0
+			_hear()
+	else:
+		_sniff_hide = maxf(_sniff_hide - delta * 0.5, 0.0)
+
+
+## Walks right past a still / sneaking / hidden player without catching them.
+func _track_near_miss(delta: float) -> void:
+	_near_cd = maxf(_near_cd - delta, 0.0)
+	var p := _get_player()
+	if p == null or asleep or Game.state != Game.State.PLAYING:
+		_near_pass = false
+		return
+	var d := _flat_dist(p.global_position)
+	var same_level := absf(p.global_position.y - global_position.y) < 2.0
+	if d < NEAR_MISS_DIST and same_level and p.call("is_quiet") == true:
+		_near_pass = true
+	elif _near_pass and (d > NEAR_MISS_DIST + 1.5 or not same_level):
+		_near_pass = false
+		if _near_cd <= 0.0:
+			_near_cd = 20.0
+			Game.add_stat("near_misses")
+			Game.level_event.emit("near_miss")

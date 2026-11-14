@@ -127,6 +127,21 @@ size = Vector3(6.0, 1.4, 6.0)
 [sub_resource type="BoxShape3D" id="BoxShape3D_12p0_1p4_15p5"]
 size = Vector3(12.0, 1.4, 15.5)
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_hideX"]
+size = Vector3(3.6, 2.0, 2.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_hideZ"]
+size = Vector3(2.8, 2.0, 3.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nf"]
+size = Vector3(2.2, 1.0, 2.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jp"]
+size = Vector3(1.2, 2.0, 1.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chase"]
+size = Vector3(10.0, 3.0, 1.5)
+
 [node name="Level" type="Node3D"]
 script = ExtResource("1_lvl2")
 reveal_material = SubResource("ShaderMaterial_rev2")
@@ -266,6 +281,54 @@ transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 12.5, 
 operation = 2
 size = Vector3(5.0, 19.0, 5.0)
 material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideGalleryE" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 15.1, 1.3, -71.0)
+operation = 2
+size = Vector3(3.0, 2.6, 2.6)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideChannel" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.5, 1.3, -102.1)
+operation = 2
+size = Vector3(2.8, 2.6, 3.0)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideGallery2" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -11.1, 4.3, -147.0)
+operation = 2
+size = Vector3(3.0, 2.6, 2.6)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="HideTunnel2" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.6, 1.3, -31.25)
+operation = 2
+size = Vector3(3.0, 2.6, 2.6)
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PuddleMark1" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -8.0)
+radius = 1.1
+height = 0.08
+sides = 12
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PuddleMark2" type="CSGCylinder3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 0.0, -87.0)
+radius = 1.1
+height = 0.08
+sides = 12
+material = SubResource("StandardMaterial3D_t1rx8")
+
+[node name="PlankMark1" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -48.0)
+size = Vector3(2.2, 0.08, 1.4)
+material = SubResource("Mat_wood")
+
+[node name="PlankMark2" type="CSGBox3D" parent="Geometry/Cave"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 3.0, -136.5)
+size = Vector3(2.2, 0.08, 1.4)
+material = SubResource("Mat_wood")
 
 [node name="Stalagmite0" type="CSGCylinder3D" parent="Geometry/Cave"]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -4.0, 1.0, -58.0)
@@ -1114,6 +1177,185 @@ metadata/surface = "water"
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/CisternWaterArea"]
 shape = SubResource("BoxShape3D_12p0_1p4_15p5")
 
+[node name="Hiding" type="Node3D" parent="."]
+
+[node name="HideGalleryE" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 15.1, 1.0, -71.0)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = 90.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideGalleryE"]
+shape = SubResource("BoxShape3D_hideX")
+
+[node name="HideChannel" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.5, 1.0, -102.1)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = 180.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideChannel"]
+shape = SubResource("BoxShape3D_hideZ")
+
+[node name="HideGallery2" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -11.1, 4.0, -147.0)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = -90.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideGallery2"]
+shape = SubResource("BoxShape3D_hideX")
+
+[node name="HideTunnel2" type="Area3D" parent="Hiding" groups=["hiding_spot"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.6, 1.0, -31.25)
+collision_layer = 0
+collision_mask = 2
+metadata/yaw = 90.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hiding/HideTunnel2"]
+shape = SubResource("BoxShape3D_hideX")
+
+[node name="Journal6" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 11.5, 1.0, -20.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 7
+floor_offset = -1.0
+journal_index = 6
+subtitle = "Jonah's page: I found Mara's notebook. They were all explorers, she wrote. I laughed. Then I counted the lanterns on the pipes. Eleven."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal6"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="Journal7" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -16.0, 1.0, -63.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 7
+floor_offset = -1.0
+journal_index = 7
+subtitle = "Jonah: The water is colder past the channel. I can hear myself breathing from across the cistern. That is not an echo."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal7"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="Journal8" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.5, 4.0, -133.5)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 7
+floor_offset = -1.0
+journal_index = 8
+subtitle = "Jonah: Day six. My ears never stop ringing. Sounds have shapes now. I could draw you a drip. This is how it starts."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal8"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="Journal9" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 3.2, 1.0, -102.4)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 7
+floor_offset = -1.0
+journal_index = 9
+subtitle = "Jonah: If you find this, do not call out for me. I would answer. I would not be able to help it. Do not stay down too long."
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/Journal9"]
+shape = SubResource("BoxShape3D_jp")
+
+[node name="ChaseCistern" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -7.0, 1.5, -106.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 5
+floor_offset = -1.5
+build_visual = false
+event_name = "chase"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/ChaseCistern"]
+shape = SubResource("BoxShape3D_chase")
+
+[node name="ChaseEnd" type="Area3D" parent="Objects"]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 4.5, -132.0)
+collision_layer = 0
+collision_mask = 2
+script = ExtResource("3_trig")
+kind = 5
+floor_offset = -1.5
+build_visual = false
+event_name = "chase_end"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Objects/ChaseEnd"]
+shape = SubResource("BoxShape3D_chase")
+
+[node name="NoiseFloor1" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5, -8.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "puddle"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor1"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor2" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5, -35.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "bones"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor2"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor3" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5, -48.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "plank"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor3"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor4" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 0.5, -87.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "puddle"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor4"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor5" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 10.0, 0.5, -103.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "bones"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor5"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor6" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -3.5, 3.5, -136.5)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "plank"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor6"]
+shape = SubResource("BoxShape3D_nf")
+
+[node name="NoiseFloor7" type="Area3D" parent="Surfaces" groups=["noise_floor"]]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 4.0, 3.5, -146.0)
+collision_layer = 0
+collision_mask = 2
+metadata/noise = "bones"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Surfaces/NoiseFloor7"]
+shape = SubResource("BoxShape3D_nf")
+
 [node name="Sounds" type="Node3D" parent="."]
 
 [node name="Drip00" type="Marker3D" parent="Sounds" groups=["drip_source"]]
@@ -1154,15 +1396,18 @@ transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 8.0, 5.5, -
 [node name="GalleryListener" parent="Listeners" instance=ExtResource("4_lstn")]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 0.1, -60.0)
 patrol_offset = Vector3(0.0, 0.0, -20.0)
+patrol_points = PackedVector3Array(0, 0, 0, 11.1, 0, -6, 11.1, 0, -16, -6, 0, -16, -6, 0, -6)
 
-[node name="Sleeper" parent="Listeners" instance=ExtResource("4_lstn")]
+[node name="Sleeper" parent="Listeners" groups=["chase_listener"] instance=ExtResource("4_lstn")]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -9.5, 0.1, -110.0)
 patrol_offset = Vector3(0.0, 0.0, 0.0)
 asleep = true
+chase_speed = 4.2
 
 [node name="Stalker" parent="Listeners" instance=ExtResource("4_lstn")]
 transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -6.0, 3.1, -144.0)
 patrol_offset = Vector3(12.0, 0.0, 0.0)
+patrol_points = PackedVector3Array(0, 0, 0, -2.9, 0, -5, -2.9, 0, 3, 6, 0, -2)
 patrol_speed = 1.8
 investigate_speed = 4.0
 alert_time = 1.1

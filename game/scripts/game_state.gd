@@ -24,6 +24,8 @@ signal level_event(event_name: String)
 signal player_fell
 ## A run stat changed (UI may show it).
 signal stat_changed(stat_name: String, value: int)
+## A journal page was found (gameplay emits; this script records it once).
+signal journal_page(index: int, text: String)
 
 ## CUTSCENE was added last so the other values never change.
 enum State { TITLE, PLAYING, CAUGHT, WON, CUTSCENE }
@@ -67,6 +69,15 @@ var pending_continue := false
 var upgrades: Array[int] = []
 ## Voice log texts by index, so they can be re-read from the pause menu.
 var log_texts := {}
+## Challenge mode: "" | "no_ping" | "one_pebble" | "darkness". Survives reset().
+var challenge := ""
+var journal_found: Array[int] = []
+var journal_texts := {}
+## Totals for the 100% badge (journals per level; logs/crystals are counted at runtime).
+const JOURNALS_PER_LEVEL := [5, 4]
+const LOGS_PER_LEVEL := [8, 7]
+const RANK_ORDER := ["LOUD", "SURVIVOR", "ECHO", "SILENT", "GHOST"]
+const CHALLENGE_NAMES := {"": "None", "no_ping": "No pings", "one_pebble": "One pebble", "darkness": "Total darkness"}
 
 
 func add_stat(stat_name: String, amount: int = 1) -> void:
@@ -74,11 +85,65 @@ func add_stat(stat_name: String, amount: int = 1) -> void:
 	stat_changed.emit(stat_name, stats[stat_name])
 
 
+func _on_journal_page(index: int, text: String) -> void:
+	journal_texts[index] = text
+	if not journal_found.has(index):
+		journal_found.append(index)
+		add_stat("journals")
+
+
+func journal_total() -> int:
+	return int(JOURNALS_PER_LEVEL[clampi(level_index, 0, JOURNALS_PER_LEVEL.size() - 1)])
+
+
+func challenge_name() -> String:
+	return str(CHALLENGE_NAMES.get(challenge, "None"))
+
+
+## GHOST / SILENT / ECHO / LOUD / SURVIVOR from this run's stats.
+func compute_rank() -> String:
+	var pings := get_stat("pings")
+	if times_caught == 0 and pings <= 10:
+		return "GHOST"
+	if times_caught == 0:
+		return "SILENT"
+	if pings >= 50 or times_caught >= 6:
+		return "LOUD"
+	if times_caught <= 3:
+		return "ECHO"
+	return "SURVIVOR"
+
+
+func _rank_key() -> String:
+	return "L%d_%s" % [level_index, challenge if challenge != "" else "none"]
+
+
+func best_rank() -> String:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) != OK:
+		return ""
+	return str(cfg.get_value("ranks", _rank_key(), ""))
+
+
+## Saves the rank if it beats the stored one; returns the best rank afterwards.
+func record_rank(rank: String) -> String:
+	var old := best_rank()
+	var best := old
+	if old == "" or RANK_ORDER.find(rank) > RANK_ORDER.find(old):
+		best = rank
+		var cfg := ConfigFile.new()
+		cfg.load(SAVE_PATH)
+		cfg.set_value("ranks", _rank_key(), rank)
+		cfg.save(SAVE_PATH)
+	return best
+
+
 func get_stat(stat_name: String) -> int:
 	return int(stats.get(stat_name, 0))
 
 
 func _ready() -> void:
+	journal_page.connect(_on_journal_page)
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) == OK:
 		best_time = cfg.get_value("run", "best_time", -1.0)
@@ -101,6 +166,12 @@ func reset(spawn: Vector3) -> void:
 	crystals_found = 0
 	upgrades.clear()
 	log_texts = {}
+	journal_found.clear()
+	journal_texts = {}
+	if challenge == "one_pebble":
+		max_pebbles = 1
+		pebbles = 1
+		checkpoint_pebbles = 1
 	_set_state(State.TITLE)
 	pebbles_changed.emit(pebbles)
 
@@ -229,6 +300,8 @@ func save_checkpoint() -> void:
 	cfg.set_value("save", "logs_found", Array(logs_found))
 	cfg.set_value("save", "log_texts", log_texts)
 	cfg.set_value("save", "crystals_found", crystals_found)
+	cfg.set_value("save", "journal_found", Array(journal_found))
+	cfg.set_value("save", "journal_texts", journal_texts)
 	cfg.set_value("save", "stats", stats)
 	cfg.set_value("save", "times_caught", times_caught)
 	cfg.set_value("save", "run_time", run_time)
@@ -257,6 +330,11 @@ func load_save() -> bool:
 	var texts: Variant = cfg.get_value("save", "log_texts", {})
 	log_texts = texts if texts is Dictionary else {}
 	crystals_found = int(cfg.get_value("save", "crystals_found", 0))
+	journal_found.clear()
+	for v in cfg.get_value("save", "journal_found", []):
+		journal_found.append(int(v))
+	var jt: Variant = cfg.get_value("save", "journal_texts", {})
+	journal_texts = jt if jt is Dictionary else {}
 	var saved_stats: Variant = cfg.get_value("save", "stats", {})
 	stats = saved_stats if saved_stats is Dictionary else {}
 	times_caught = int(cfg.get_value("save", "times_caught", 0))
