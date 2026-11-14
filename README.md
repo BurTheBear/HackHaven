@@ -6,6 +6,8 @@ Our Hack Club Haven game jam entry: **ECHO**, a first-person stealth-horror game
 
 **Audio plan for the ElevenLabs sponsor track: [ELEVENLABS.md](ELEVENLABS.md)**
 
+**Asset list (Elias): [ASSETS.md](ASSETS.md)**
+
 ## Folders
 - `game/`: the Godot project. Open `game/project.godot` in Godot.
 - `atharv/`, `shreyansh/`, `elias/`: personal notes, sketches and reference.
